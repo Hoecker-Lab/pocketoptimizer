@@ -43,7 +43,7 @@ Running PocketOptimizer
 Since PocketOptimizer's rework, the framework is now accessed solely through Python 3.9.
 This means that it can be incorporated in your regular Python scripts or in an interactive fashion through Jupyter Notebooks.
 The former is useful for automatized pipelines while the latter is helpful for going through every step separately.
-Jupyter is already part of the ``pocketoptimizer2`` module and does not need be installed.
+Jupyter is already part of the ``pocketoptimizer`` module and does not need be installed.
 Jupyter can be opened in two different ways:
 
 * `Jupyter-Lab <https://jupyterlab.readthedocs.io/en/stable/>`_: the newest framework.
@@ -74,7 +74,7 @@ Before being able to use PocketOptimizer in Jupyter you need to install the kern
 
 .. code-block:: bash
 
-    python3 -m ipykernel install --user --name pocketoptimizer2
+    python3 -m ipykernel install --user --name pocketoptimizer
 
 Then you can select it in the upper right corner of the Jupyter-Notebook.
 
