@@ -355,8 +355,8 @@ def write_energies(outpath: str, energies: np.ndarray, energy_terms: List[str], 
     Returns
     -------
     """
-    # Round energy values to three decimal places
-    energies = np.around(energies, 3)
+    # Round energy values to four decimal places
+    energies = np.around(energies, 4)
 
     # Convert numpy array to dataframe
     df = pd.DataFrame(energies)

@@ -86,31 +86,29 @@ class TxtReporter:
         col_width = 0
         for p in self._solutions.get_positions():
             res = self._solutions.get_residue_for_positions(solution_index, p)
-            l = len(res) + len(p) + 1
-            col_width = max(col_width, l)
+            col_width = max(col_width, len(res) + len(p) + 1)
 
         out_file.write('  ' + 'Position'.ljust(col_width) + ' | Energies [kcal/mol]\n')
         title_line = '  ' + ' ' * col_width + ' |  Scaled ||     Sum'
-        component_names = None
+
+        totals = {}
+        totals['sum'] = 0.0
+        totals['scaled'] = 0.0
+        # assuming all ligand-sidechain energies have same components
+        comp_names = self._solutions.get_self_energy_component_names('ligand')
+        for c in comp_names:
+            totals[c] = 0.0
+            title_line += ' | ' + c.ljust(8)
+        out_file.write(title_line + '\n  ' + '-' * len(title_line) + '\n')
 
         # first, the amino acid side chains:
         for p in self._sidechain_positions:
-            if not component_names:
-                # assuming all ligand-sidechain energies have same components,
-                component_names = self._solutions.get_pair_energy_component_names(p, 'ligand')
-                for name in component_names:
-                    title_line += ' | ' + name.ljust(8)
-                out_file.write(title_line + '\n  ' + '-' * len(title_line) + '\n')
-                totals = dict(zip(component_names,
-                                  [0.0] * len(component_names)))
-                totals['scaled'] = 0.0
-                totals['sum'] = 0.0
             res = self._solutions.get_residue_for_positions(solution_index, p)
             scaled = self._solutions.get_pair_energy(solution_index, p, 'ligand')
             totals['scaled'] += scaled
             summa = 0.0
             out_str = ''
-            for c in component_names:
+            for c in comp_names:
                 e = self._solutions.get_pair_energy_component(solution_index, c, p, 'ligand')
                 totals[c] += e
                 summa += e
@@ -120,42 +118,12 @@ class TxtReporter:
                            ('%.4f' % summa).rjust(8) + '   ' + out_str + '\n')
             totals['sum'] += summa
 
-        # now, the non-sidechain positons (e.g. metals, waters)
-        for p in self._solutions.get_positions():
-            if p in self._sidechain_positions or p == 'ligand':
-                continue
-            comp_names = self._solutions.get_pair_energy_component_names(p, 'ligand')
-            # TODO: group by component sets, so that only one header line is
-            # written per set (probably a rare case, but still)
-            if comp_names != component_names:
-                component_names = comp_names
-                title_row = '  ' + ' ' * col_width + ' |  Scaled ||     Sum'
-                for name in component_names:
-                    title_row += ' | ' + name.ljust(8)
-                    if name not in totals:
-                        totals[name] = 0.0
-                out_file.write('\n' + title_row + '\n   ' + '-' * len(title_row) + '\n')
-            res = self._solutions.get_residue_for_positions(solution_index, p)
-            scaled = self._solutions.get_pair_energy(solution_index, p, 'ligand')
-            totals['scaled'] += scaled
-            summa = 0.0
-            out_str = ''
-            for c in component_names:
-                e = self._solutions.get_pair_energy_component(solution_index, c, p, 'ligand')
-                totals[c] += e
-                summa += e
-                out_str += ('%.4f' % e).rjust(max(8, len(c))) + '   '
-            out_file.write('  ' + (p + ':' + res).ljust(col_width) + '   ' +
-                           ('%.4f' % scaled).rjust(8) + '   ' +
-                           ('%.4f' % summa).rjust(8) + '   ' + out_str + '\n')
-            totals['sum'] += summa
-
-        out_file.write('\n  ' + 'Total'.rjust(col_width) + '  '
+        out_file.write('\n   ' + 'Total'.rjust(col_width) + '  '
                        + ('%.4f' % totals['scaled']).rjust(8) +
                        '   ' + ('%.4f' % totals['sum']).rjust(8))
-        for scn in component_names:
+        for c in comp_names:
             out_file.write('   '
-                           + ('%.4f' % totals[scn]).rjust(max(8, len(scn))))
+                           + ('%.4f' % totals[c]).rjust(max(8, len(c))))
         out_file.write('\n\n')
 
     def _write_simple_ligand_pair_report(self, solution_index: int, out_file: StringIO) -> NoReturn:
@@ -195,11 +163,11 @@ class TxtReporter:
             File object of the output file
         """
         if self._solutions.has_detailed_self_energies():
-            component_names = self._solutions.get_self_energy_component_names('ligand')
+            comp_names = self._solutions.get_self_energy_component_names('ligand')
             out_file.write('\n')
             title_row = '             |  Scaled ||     Sum'
-            for name in component_names:
-                title_row += ' | ' + name.rjust(8)
+            for c in comp_names:
+                title_row += ' | ' + c.rjust(8)
             out_file.write(title_row + '\n   ' + '-' * len(title_row) + '\n')
 
             scaled = self._solutions.get_self_energy(solution_index, 'ligand')
@@ -251,46 +219,51 @@ class TxtReporter:
         out_file: StringIO
             File object of the output file
         """
-        component_sets = []
         col_width = 0
         for pos in self._solutions.get_positions():
-            if pos == 'ligand':
-                continue
-            comp_names = self._solutions.get_self_energy_component_names(pos)
-            if comp_names not in component_sets:
-                component_sets.append(comp_names)
-            res = self._solutions.get_residue_for_positions(solution_index, pos)
-            col_width = max(col_width, len(res) + len(pos) + 1)
-
-        out_file.write('  ' + 'Position'.ljust(col_width) + ' | Energies [kcal/mol]')
-        for component_names in component_sets:
-            title_row = '  ' + ' '.rjust(col_width) \
-                        + ' |   Scaled  ||       Sum'
-            for c in component_names:
-                title_row += ' | ' + c.rjust(8)
-            title_row += '\n'
-            out_file.write('\n' + title_row + '  ' + '-' * len(title_row) + '\n')
-            for pos in self._solutions.get_positions():
-                if pos == 'ligand':
-                    continue
+            if pos != 'ligand':
                 comp_names = self._solutions.get_self_energy_component_names(pos)
-                if comp_names != component_names:
-                    continue
+                res = self._solutions.get_residue_for_positions(solution_index, pos)
+                col_width = max(col_width, len(res) + len(pos) + 1)
 
+        totals = {}
+        totals['sum'] = 0.0
+        totals['scaled'] = 0.0
+        out_file.write('  ' + 'Position'.ljust(col_width) + ' | Energies [kcal/mol]')
+        title_row = '  ' + ' '.rjust(col_width) \
+                    + ' |   Scaled  ||       Sum'
+
+        for c in comp_names:
+            totals[c] = 0.0
+            title_row += ' | ' + c.rjust(8)
+        title_row += '\n'
+        out_file.write('\n' + title_row + '  ' + '-' * len(title_row) + '\n')
+        for pos in self._solutions.get_positions():
+            if pos != 'ligand':
                 res = self._solutions.get_residue_for_positions(solution_index, pos)
                 out_file.write('   ' + (pos + ':' + res).ljust(col_width)
                                + '  ')
                 scaled = self._solutions.get_self_energy(solution_index, pos)
+                totals['scaled'] += scaled
                 summa = 0.0
                 out_str = ''
-                for c in component_names:
+                for c in comp_names:
                     e = self._solutions.get_self_energy_component(solution_index, pos, c)
                     summa += e
+                    totals[c] += e
                     out_str += ('%.4f' % e).rjust(max(8, len(c))) + '   '
+                totals['sum'] += summa
                 out_file.write(('%.4f' % scaled).rjust(10) + '   '
                                + ('%.4f' % summa).rjust(10)
                                + '   ' + out_str + '\n')
-        out_file.write('\n')
+
+        out_file.write('\n      ' + 'Total'.rjust(col_width) + '  '
+                       + ('%.4f' % totals['scaled']).rjust(8) +
+                       '   ' + ('%.4f' % totals['sum']).rjust(8))
+        for c in comp_names:
+            out_file.write('   '
+                           + ('%.4f' % totals[c]).rjust(max(8, len(c))))
+        out_file.write('\n\n')
 
     def _write_simple_self_report(self, solution_index: int, out_file: StringIO) -> NoReturn:
         """
@@ -326,7 +299,7 @@ class TxtReporter:
             File object of the output file.
         """
 
-        # prepape order of rows: first , sidechain pairs, then mixed pairs,
+        # prepape order of rows: first, sidechain pairs, then mixed pairs,
         # then non-sidechain pairs
         position_pairs = []
         for i, p1 in enumerate(self._sidechain_positions[:-1]):
@@ -348,47 +321,48 @@ class TxtReporter:
                         position_pairs.append((p1, p2))
 
         col_width = 0
-        # component_sets = []
         for p in self._solutions.get_positions():
             if p != 'ligand':
+                comp_names = self._solutions.get_self_energy_component_names(p)
                 res = self._solutions.get_residue_for_positions(solution_index, p)
                 col_width = max(col_width, len(res) + len(p) + 1)
 
+        totals = {}
+        totals['sum'] = 0.0
+        totals['scaled'] = 0.0
         out_file.write('  ' + 'Position 1'.ljust(col_width) + ' | ' +
                        'Position 2'.ljust(col_width) + ' | Energies [kcal/mol]\n')
-        #        out_file.write('  ' + ' '*(2*max(10, col_width)) + ' | ')
-        component_names = None
+        title_row = '  ' + ' ' * col_width + ' | ' + ' ' * col_width + \
+                    ' |   Scaled ||      Sum  '
+        for c in comp_names:
+            totals[c] = 0.0
+            title_row += ' | ' + c.rjust(8)
+        out_file.write(title_row + '\n  ' + '-' * len(title_row) + '\n')
 
         for (p1, p2) in position_pairs:
             res1 = self._solutions.get_residue_for_positions(solution_index, p1)
             res2 = self._solutions.get_residue_for_positions(solution_index, p2)
 
-            comp_names = self._solutions.get_pair_energy_component_names(p1, p2)
-            # TODO: sort by component set, so that every header has to be written
-            # only once add scaled and total columns like in ligand energy
-            if comp_names != component_names:
-                if component_names:
-                    out_file.write('\n')
-                component_names = comp_names
-                title_row = '  ' + ' ' * col_width + ' | ' + ' ' * col_width + \
-                            ' |   Scaled ||      Sum  '
-                for c in component_names:
-                    title_row += ' | ' + c.rjust(8)
-                out_file.write(title_row + '\n  ' + '-' * len(title_row) + '\n')
-
             out_file.write('  ' + (p1 + ':' + res1).ljust(col_width) + '   ' + (p2 + ':' + res2).ljust(col_width))
             scaled = self._solutions.get_pair_energy(solution_index, p1, p2)
+            totals['scaled'] += scaled
             summa = 0.0
             out_str = ''
-            for c in component_names:
+            for c in comp_names:
                 e = self._solutions.get_pair_energy_component(solution_index, c, p1, p2)
                 summa += e
+                totals[c] += e
                 out_str += ('%.4f' % e).rjust(max(8, len(c)) + 2) + ' '
+            totals['sum'] += summa
             out_file.write(('%.4f' % scaled).rjust(10) + '   ' +
                            ('%.4f' % summa).rjust(10) + '   ' + out_str + '\n')
 
-            # lines.sort()
-
+        out_file.write('\n             ' + 'Total'.rjust(col_width) + '  '
+                       + ('%.4f' % totals['scaled']).rjust(8) +
+                       '   ' + ('%.4f' % totals['sum']).rjust(8))
+        for c in comp_names:
+            out_file.write('   '
+                           + ('%.4f' % totals[c]).rjust(max(8, len(c))))
         out_file.write('\n')
 
     def _write_simple_pair_report(self, solution_index: int, out_file: StringIO) -> NoReturn:
