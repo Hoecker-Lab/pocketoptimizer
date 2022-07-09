@@ -25,7 +25,8 @@ logging.basicConfig(
 logger = logging.getLogger('pocketoptimizer.preparation.minimize_structure')
 
 
-def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cuda: bool = False, restraint_bb: bool = True, temperature: float = 300.0) -> NoReturn:
+def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cuda: bool = False, restraint_bb: bool = True,
+                       minimize_ligand: bool = False, output_ligand: str = None, temperature: float = 300.0) -> NoReturn:
     """
     Minimization method utilizing OpenMM.
     The structures will be initialized with the corresponding force
@@ -43,6 +44,10 @@ def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cu
         Minimization on GPU. [default: False]
     restraint_bb: bool
         Applies a restraint on the backbone. [default: True]
+    minimize_ligand: bool
+        Whether to use the minimized ligand in the design [default: False]
+    output_ligand: str
+        Output name of the minimzed ligand
     temperature: float
         temperature of the system in Kelvin [default: 300.0]
     """
@@ -139,5 +144,7 @@ def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cu
     rmsd = float(metric_rmsd.project(prot_min))
     logger.info(f'RMSD between minimized and unminimized structure: {str(round(rmsd, 4))} Å.')
     structure.coords = prot_min.coords
-    structure.remove('resname MOL', _logger=False)
+    if minimize_ligand:
+        structure.write(output_ligand, sel='segid L')
+    structure.remove('segid L', _logger=False)
     structure.write(output_pdb)

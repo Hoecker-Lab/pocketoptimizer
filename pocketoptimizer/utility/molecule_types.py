@@ -20,11 +20,7 @@ _SIDECHAIN_TORSIONS_AMBER = {
          ["CB", "CG", "CD", "OE1"]],
     'GLY':
         [],
-    'HIP':
-        [["N", "CA", "CB", "CG"], ["CA", "CB", "CG", "ND1"]],
-    'HID':
-        [["N", "CA", "CB", "CG"], ["CA", "CB", "CG", "ND1"]],
-    'HIE':
+    'HIS':
         [["N", "CA", "CB", "CG"], ["CA", "CB", "CG", "ND1"]],
     'ILE':
         [["N", "CA", "CB", "CG1"], ["CA", "CB", "CG1", "CD1"]],
@@ -71,11 +67,7 @@ _SIDECHAIN_TORSIONS_CHARMM = {
          ["CB", "CG", "CD", "OE1"]],
     'GLY':
         [],
-    'HIP':
-        [["N", "CA", "CB", "CG"], ["CA", "CB", "CG", "ND1"]],
-    'HID':
-        [["N", "CA", "CB", "CG"], ["CA", "CB", "CG", "ND1"]],
-    'HIE':
+    'HIS':
         [["N", "CA", "CB", "CG"], ["CA", "CB", "CG", "ND1"]],
     'ILE':
         [["N", "CA", "CB", "CG1"], ["CA", "CB", "CG1", "CD"]],

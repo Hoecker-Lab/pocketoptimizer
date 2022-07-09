@@ -1,4 +1,6 @@
 import os
+import numpy as np
+from tqdm.auto import tqdm
 import multiprocessing as mp
 from functools import partial
 import tempfile as tf
@@ -6,8 +8,6 @@ import shutil
 from typing import List, Tuple, Dict, Union, NoReturn
 import logging
 
-import numpy as np
-from tqdm.auto import tqdm
 from moleculekit.molecule import Molecule
 from ffevaluation.ffevaluate import FFEvaluate
 
@@ -25,7 +25,8 @@ logger = logging.getLogger('pocketoptimizer.sampling.sidechain_rotamers_ffev')
 
 
 class FFRotamerSampler:
-    """ Class for force field based rotamer sampling using either backbone independent rotamers from cmlib or backbone dependent rotamers from dunbrack rotamer library.\n
+    """ Class for force field based rotamer sampling using either backbone independent rotamers
+    from cmlib or backbone dependent rotamers from dunbrack rotamer library.
         cmlib:
             * superimpose rotamers onto structure
             * filter based on energy
@@ -36,17 +37,17 @@ class FFRotamerSampler:
             * set dihedral angles
             * prune based on probability
             * filter based on energy
-    - save rotamers into .pdb files and energies into .csv files
+    - save rotamers into pdb files and energies into csv files
     """
-    def __init__(self, ff_dir: str, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str,
-                 rot_path: str, include_native: bool = True, library: str = 'dunbrack', tmp: str = '/tmp/'):
+    def __init__(self, work_dir: str, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str,
+                 rot_path: str, library: str = 'dunbrack', tmp: str = '/tmp/'):
         """
         Constructor method.
 
         Parameters
         ----------
-        ff_dir: str
-            Directory containing builds for forcefield
+        work_dir: str
+            Path to working directory
         mutations: list
             List of all mutations where rotamers should be sampled for. Contains dictionaries as list entries.
             The dictionary should contain 'chain', 'resid', 'mutations' as keys.
@@ -54,21 +55,17 @@ class FFRotamerSampler:
             Force field to use for energy calculations
         rot_path: str
             Output path for sampled rotamers
-        include_native: bool
-            Whether to include the native rotamer
         library: str
             Library to use for selecting rotamers, either setting coordinates from pdb after superimposing (cmlib)
             or setting dihedral angles from dunbrack [default: 'dunbrack']
         tmp: str
             Temporary directory to write temporary files [default: '/tmp']
         """
-
-        self.ff_dir = ff_dir
+        self.work_dir = work_dir
         self.mutations = mutations
         self.library = library
         self.forcefield = forcefield
         self.rot_path = rot_path
-        self.include_native = include_native
         self.tmp = tmp
 
     def read_cmlib(self, residue: str) -> Molecule:
@@ -203,11 +200,10 @@ class FFRotamerSampler:
 
         return list(set(chi_angles))
 
-    def calculate_vdw(self, rot_id: int, structure: Molecule, ffev: FFEvaluate, res_coords: np.ndarray, resname: str, resid: str,
-                      chain: str) -> Tuple[float, Union[float, str]]:
+    def calculate_vdw(self, rot_id: int, structure: Molecule, ffev: FFEvaluate,
+                      res_coords: np.ndarray, resname: str, resid: str, chain: str) -> np.float:
         """
-        Calculates vdW energy of a rotamer if energy is below a user
-        defined threshold then rotamer is writen to tmp_dir
+        Calculates vdW energy of a rotamer
 
         Parameters
         ----------
@@ -228,18 +224,15 @@ class FFRotamerSampler:
 
         Returns
         -------
-        Returns the pre and post minimized vdw energy of the rotamer in kcal/mol if below vdw threshold otherwise 'NaN'.
+        Returns vdW energy
         """
         # Set coordinates of side chain to coordinates from rotamer
-        structure.set('coords', res_coords[:, :, rot_id], f'resid {resid} and chain {chain} and sidechain')
+        structure.set('coords', res_coords[:, :, rot_id], f'resid {resid} and chain {chain}')
         energies = ffev.calculateEnergies(structure.coords)
-        energy = energies['vdw']
-        logger.debug(
-            f'Writing rotamer {rot_id} for residue: {chain}_{resid}_{resname} with energy: {energy} kcal/mol.')
         structure.write(os.path.join(self.tmp, f'{chain}_{resid}_{resname}_rot_{rot_id}.pdb'),
                         sel=f'resid {resid} and chain {chain}')
 
-        return energy
+        return energies['vdw']
 
     def merge_rotamers(self, rot_ids: List[int], resname: str, resid: str, chain: str, outfile: str) -> NoReturn:
         """
@@ -261,20 +254,18 @@ class FFRotamerSampler:
             i = 0
             for rot_id in rot_ids:
                 with open(os.path.join(self.tmp, f'{chain}_{resid}_{resname}_rot_{rot_id}.pdb'), 'r') as rot_file:
-                    rot_file = rot_file.readlines()
                     for line in rot_file:
                         if line.startswith('MODEL'):
                             i += 1
                             line = f'MODEL        {str(i)}\n'
-                        if line.startswith('ATOM'):
+                        elif line.startswith('ATOM'):
                             line = line[:22] + str(rot_id).rjust(4) + line[26:]
-                        if line.startswith('CONECT'):
+                        elif line.startswith('CONECT'):
                             continue
                         # skip 'END' lines (distinguish between 'END' and 'ENDMDL')
-                        if line.startswith('END') and not line.startswith('ENDMDL'):
+                        elif line.startswith('END') and not line.startswith('ENDMDL'):
                             continue
                         merged_rot_file.write(line)
-                os.remove(os.path.join(self.tmp, f'{chain}_{resid}_{resname}_rot_{rot_id}.pdb'))
             merged_rot_file.write('END')
 
     def rotamer_sampling(self, vdw_filter_thresh: float = 100.0, dunbrack_filter_thresh: float = -1,
@@ -295,7 +286,7 @@ class FFRotamerSampler:
         _keep_tmp: bool
             If the tmp directory should be deleted or not. Useful for debugging. [default: False]
         """
-        from pocketoptimizer.utility.utils import MutationProcessor, load_ff_parameters, write_energies
+        from pocketoptimizer.utility.utils import MutationProcessor, load_ff_parameters, write_energies, calculate_chunks
 
         logger.info('Start rotamer sampling procedure using FFEvaluate.')
         if self.forcefield == 'amber_ff14SB':
@@ -306,27 +297,23 @@ class FFRotamerSampler:
             logger.error('Force field not implemented.')
             raise NotImplementedError('Force field not implemented.')
 
-        tmp_dir = tf.mkdtemp(dir=self.tmp, prefix='calculateRotamers_')
-        os.chdir(tmp_dir)
+        self.tmp = tf.mkdtemp(dir=self.tmp, prefix='calculateRotamers_')
+        os.chdir(self.tmp)
         logger.info(f"Using {ncpus} CPU's for multiprocessing.")
 
-        scaffold = os.path.join(self.ff_dir, 'scaffold.pdb')
-
-        mutation_processor = MutationProcessor(scaffold=scaffold, mutations=self.mutations)
+        mutation_processor = MutationProcessor(structure=os.path.join(self.work_dir, 'scaffold', self.forcefield, 'scaffold.pdb'), mutations=self.mutations)
         termini_positions = mutation_processor.check_termini()
 
         for mutation in self.mutations:
             resid = mutation['resid']
             chain = mutation['chain']
-
             N_terminus = False
             C_terminus = False
 
             # Check if the position is at the N-or C-terminus of the protein
-
             if 'N-terminus' in termini_positions:
                 if f'{chain}_{resid}' in termini_positions['N-terminus']:
-                    N_terminus =True
+                    N_terminus = True
             elif 'C-terminus' in termini_positions:
                 if f'{chain}_{resid}' in termini_positions['C-terminus']:
                     C_terminus = True
@@ -339,7 +326,8 @@ class FFRotamerSampler:
                     continue
                 logger.info(f'Rotamers for residue: {chain}_{resid}_{resname} not sampled yet.')
 
-                structure_path = os.path.join(self.ff_dir, 'protein_params', f'{chain}_{resid}_{resname}_sampling_pocket')
+                structure_path = os.path.join(self.work_dir, 'scaffold', self.forcefield,
+                                              'protein_params', f'{chain}_{resid}_{resname}')
 
                 # Check if directories containing single mutated scaffolds are existing
                 if not os.path.isfile(os.path.join(structure_path, 'structure.pdb')):
@@ -354,18 +342,16 @@ class FFRotamerSampler:
                         residue.filter(f'chain {chain} and resid {resid}', _logger=False)
                     else:
                         residue = self.read_cmlib(resname)
-                        if self.include_native:
-                            native_residue = struc.copy()
-
-                            # Take care of additional atoms at N-and C-terminus
-                            if N_terminus:
-                                native_residue.filter(f'chain {chain} and resid {resid} and not (name H2 or name H3)', _logger=False)
-                            elif C_terminus:
-                                native_residue.filter(f'chain {chain} and resid {resid} and not name OXT', _logger=False)
-                            else:
-                                native_residue.filter(f'chain {chain} and resid {resid}', _logger=False)
-                            native_conf = np.expand_dims(native_residue.get('coords', sel=f'chain {chain} and resid {resid}'), axis=2)
-                            residue.coords = np.dstack((residue.coords, native_conf))
+                        native_residue = struc.copy()
+                        # Take care of additional atoms at N-and C-terminus
+                        if N_terminus:
+                            native_residue.filter(f'chain {chain} and resid {resid} and not (name H2 or name H3)', _logger=False)
+                        elif C_terminus:
+                            native_residue.filter(f'chain {chain} and resid {resid} and not name OXT', _logger=False)
+                        else:
+                            native_residue.filter(f'chain {chain} and resid {resid}', _logger=False)
+                        native_conf = np.expand_dims(native_residue.get('coords', sel=f'chain {chain} and resid {resid}'), axis=2)
+                        residue.coords = np.dstack((residue.coords, native_conf))
                         # Set rotamers backbone onto backbone of residue
                         ref = f'(name CA or name C or name N) and resid {resid} and chain {chain}'
                         residue.align(sel='name N or name C or name CA', refmol=struc, refsel=ref)
@@ -379,18 +365,15 @@ class FFRotamerSampler:
                         if not N_terminus:
                             phi_indices = struc.get('index', sel=f'(chain {chain} and resid {str(int(resid)-1)} and name C) or (chain {chain} and resid {resid} and (name N or name CA or name C))')
                             phi_angle = struc.getDihedral(phi_indices) * (180/np.pi) + 180
-
                         if not C_terminus:
                             psi_indices = struc.get('index', sel=f'(chain {chain} and resid {resid} and (name N or name CA or name C)) or (chain {chain} and resid {str(int(resid)+1)} and name N)')
                             psi_angle = struc.getDihedral(psi_indices) * (180/np.pi) + 180
 
                         # Read histidine rotamers for different HIS protonation states
                         if resname in ['HID', 'HIE', 'HIP']:
-                            res_name = 'HIS'
-                        else:
-                            res_name = resname
+                            resname = 'HIS'
 
-                        rotamers = self.read_dunbrack(resname=res_name,
+                        rotamers = self.read_dunbrack(resname=resname,
                                                       phi_angle=phi_angle,
                                                       psi_angle=psi_angle,
                                                       N_terminus=N_terminus,
@@ -400,39 +383,38 @@ class FFRotamerSampler:
                         chi_angles = self.expand_dunbrack(rotamers=rotamers,
                                                           expand=expand)
 
-                        # Iterate over all rotamers
-                        current_rot = struc.copy()
-                        current_rot.filter(f'chain {chain} and resid {resid}', _logger=False)
-                        # Break the proline ring, since no dihedral changing possible
+                        # Keep original rotamer
+                        current_rot = residue.copy()
+                        # Break proline rings, since no dihedral setting possible
                         if resname == 'PRO':
                             current_rot.deleteBonds(sel='name N or name CD', inter=False)
                         bonds = current_rot.bonds
+                        # Iterate over all rotamers
                         for rotamer in chi_angles:
                             for i, torsion in enumerate(_SIDECHAIN_TORSIONS[resname]):
                                 # select the four atoms forming the dihedral angle according to their atom names
-                                indices = current_rot.get('index', sel=f'name {torsion[0]} or name {torsion[1]} or name {torsion[2]} or name {torsion[3]}')
-
-                                current_rot.setDihedral(indices, rotamer[i] * (np.pi/180), bonds=bonds)
+                                index_1 = int(current_rot.get('index', sel=f'name {torsion[0]}'))
+                                index_2 = int(current_rot.get('index', sel=f'name {torsion[1]}'))
+                                index_3 = int(current_rot.get('index', sel=f'name {torsion[2]}'))
+                                index_4 = int(current_rot.get('index', sel=f'name {torsion[3]}'))
+                                current_rot.setDihedral([index_1, index_2, index_3, index_4], rotamer[i] * (np.pi/180), bonds=bonds)
                             # append rotameric states as frames to residue
                             residue.appendFrames(current_rot)
-                        if not self.include_native:
-                            # remove original rotamer
-                            residue.dropFrames(drop=0)
                 else:
                     logger.error(f'Library: {self.library} not a valid option. Try cmlib or dunbrack.')
                     raise ValueError(f'Library: {self.library} not a valid option. Try cmlib or dunbrack.')
 
                 nrots = residue.coords.shape[-1]
+
                 struc.filter('protein', _logger=False)
-                residue.filter('sidechain', _logger=False)
                 fixed_selection = f'protein and not (chain {chain} and resid {resid})'
                 variable_selection = f'protein and chain {chain} and resid {resid} and sidechain'
                 # Generate FFEvaluate object for scoring between sidechain and rest of protein without sidechain and backbone from sidechain
                 ffev = FFEvaluate(struc, prm, betweensets=(fixed_selection, variable_selection))
 
-                energies = []
-                with mp.Pool(processes=ncpus) as pool:
-                    with tqdm(total=nrots, desc=f'{chain}_{resid}_{resname}') as pbar:
+                energies = np.ndarray(nrots)
+                with tqdm(total=nrots, desc=f'{chain}_{resid}_{resname}') as pbar:
+                    with mp.Pool(processes=ncpus) as pool:
                         for i, energy in enumerate(pool.imap(
                                 partial(self.calculate_vdw,
                                         structure=struc.copy(),
@@ -440,17 +422,15 @@ class FFRotamerSampler:
                                         res_coords=residue.coords,
                                         resname=resname,
                                         resid=resid,
-                                        chain=chain), np.arange(nrots))):
-                            energies.append(energy)
+                                        chain=chain), np.arange(nrots),
+                                chunksize=calculate_chunks(nposes=nrots, ncpus=ncpus))):
+                            energies[i] = energy
                             pbar.update()
-                val_ids = []
-                for i, energy in enumerate(energies):
-                    if energy <= vdw_filter_thresh:
-                        val_ids.append(i)
+                val_ids = [val_id[0] for val_id in np.argwhere(energies <= vdw_filter_thresh)]
 
                 if not val_ids:
                     logger.warning(f'No rotamers within energy threshold of {vdw_filter_thresh} kcal/mol for residue: {resname} at position: {chain}_{resid}. Include rotamer with lowest energy.')
-                    val_ids.append(np.where(np.array(energies)==np.min(energies))[0][0])
+                    val_ids.append(np.where(np.array(energies) == np.min(energies))[0][0])
                 else:
                     logger.info(f'Writing {len(val_ids)}/{nrots} rotamers within energy threshold of {str(vdw_filter_thresh)} kcal/mol for {resname} at position: {chain}_{resid}.')
 
@@ -463,10 +443,9 @@ class FFRotamerSampler:
                                name_a=resname,
                                nconfs_a=nrots)
 
-                if val_ids:
-                    self.merge_rotamers(rot_ids=val_ids, resname=resname, resid=resid, chain=chain, outfile=outfile)
+                self.merge_rotamers(rot_ids=val_ids, resname=resname, resid=resid, chain=chain, outfile=outfile)
 
         if not _keep_tmp:
-            if os.path.isdir(tmp_dir):
-                shutil.rmtree(tmp_dir)
+            if os.path.isdir(self.tmp):
+                shutil.rmtree(self.tmp)
         logger.info('Rotamer sampling procedure is finished.')

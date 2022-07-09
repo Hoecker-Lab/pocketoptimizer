@@ -21,6 +21,8 @@ If you want to use PocketOptimizer you can clone the GitHub repository and set u
 
     cd /YOUR_PATH/PocketOptimizer2
 
+    git checkout github
+
 The repository contains an environment.yml file that holds information about all
 dependencies and versions required for PocketOptimizer. By typing:
 
@@ -198,15 +200,15 @@ the following lines:
     # Set the Path to your working directory which contains the scaffold and ligand folder
     # Set a pH value or use the default value of 7.2
     # Select a force field (either: charmm36 or amber_ff14SB)
-    design = po.DesignPipeline(work_dir='YOUR_PROJECT_PATH', ph=pH_VALUE, forcefield='YOUR_FORCEFIELD')
+    design = po.DesignPipeline(work_dir='YOUR_PROJECT_PATH', ph=pH_VALUE, forcefield='YOUR_FORCEFIELD', ncpus=8)
 
 While you are initializing you can define a pH, used for protonating the side chains of the protein and also the ligand molecule.
 Additionally, PocketOptimizer has two force fields implemented, the AMBER ff14SB and the CHARMM 36 force field.
-AMBER stands for Assisted Model Building with Energy Refinement, while CHARMM
-stands for Chemistry at HARvard Macromolecular Mechanics. These force fields contain not only parameters for all defined atom types
+These force fields contain not only parameters for all defined atom types
 but also the energy functions used to calculate the potential energy of the protein-ligand system. The energy functions mostly rely on
 harmonic potentials describing different bonded interactions, such as bond lengths or bond angles and Lennard-Jones or coulombic potentials
-describing different non-bonded interactions such as van-der-Waals (vdW) or electrostatic interactions.
+describing different non-bonded interactions such as van-der-Waals (vdW) or electrostatic interactions. Besides you can define the number of
+CPUs used for all energy calculations.
 
 It is recommended to use PocketOptimizer in combination with a Jupyter notebook,
 as it allows a more flexible and interactive use of the framework.
@@ -281,8 +283,6 @@ notebook and type the following:
     design.prepare_protein(
         protein_structure='scaffold/YOUR_PROTEIN.pdb',  # Input PDB
         keep_chains=['A', 'B'],  # Specific protein chain to keep
-        minimize=True,           # Protein minimization
-        min_with_lig=True,       # Includes the ligand during the minimization
         backbone_restraint=True, #  Restrains the backbone during the minimization
         cuda=False,              # Performs minimization on CPU instead of GPU
         discard_mols=None        # Special molecules to exclude. Per default everything, but peptides have to be defined manually
@@ -450,7 +450,6 @@ or randomly.
         method='grid',         #  Uses the grid method. Other option is random
         grid=sample_grid,      #  Defined grid for sampling
         vdw_filter_thresh=100, #  Energy threshold of 100 kcal/mol
-        ncpus=8,               #  Number of CPUs to use
         max_poses=10000        #  Maximum number of poses
     )
 
@@ -490,8 +489,6 @@ Side chain rotamers can be sampled with the following method based on the fixed 
         vdw_filter_thresh=100,       # Energy threshold of 100 kcal/mol
         dunbrack_filter_thresh=0.01, # rotamers having a lower probability of occuring are eventually discarded
         expand=['chi1','chi2']       # Expand certain chi-angles by +/- 1 Std
-        include_native=True,         # Include the native rotamer at that position
-        ncpus=8                      # Number of CPUs to use
         )
 
 This procedures will use the design mutations that were set in the previous step and a defined van
@@ -556,15 +553,13 @@ When calculating all energies you can decide which scoring function to use. Call
      'ff': ['amber_ff14SB', 'charmm36']}
 
 gives you an overview over all available scoring functions implemented in PocketOptimizer.
-Furthermore, the number of CPUs used for scoring can be specified and also you can exclude certain mutations from the energy
-calculation step:
+To calculate the energies:
 
 .. code-block:: python
 
     # Calculate the binding and packing energies of all ligand poses and side chain rotamers against each other and against the fixed scaffold
     design.calculate_energies(
         scoring='vina',           #  Method to score protein-ligand interaction
-        ncpus=8                   #  Number of CPUs to use
         )
 
 This step also defines the used scoring function (to change it repeat the step and use a different scoring function).
@@ -607,7 +602,7 @@ The final designs can be calculated with:
     # Compute the lowest energy structures using linear programming
     design.design(
         num_solutions=10,           #  Number of solutions to compute
-        ligand_scaling=100          #  Scaling factor for protein-ligand interaction
+        ligand_scaling=10          #  Scaling factor for protein-ligand interaction
     )
 
 which first prepares input files for the optimizer and then creates output
@@ -705,13 +700,11 @@ can be defined inside one Python script:
     # Set the Path to your working directory which contains the scaffold and ligand folder
     # Set a pH value or use the default value of 7.2
     # Select a force field (either: charmm36 or amber_ff14SB)
-    design = po.DesignPipeline(work_dir='YOUR_PROJECT_PATH', ph=pH_VALUE, forcefield='YOUR_FORCEFIELD')
+    design = po.DesignPipeline(work_dir='YOUR_PROJECT_PATH', ph=pH_VALUE, forcefield='YOUR_FORCEFIELD', ncpus=8)
 
     design.prepare_protein(
     protein_structure='scaffold/YOUR_PROTEIN.pdb',  # Input PDB
     keep_chains=['A', 'B'],  # Specific protein chain to keep
-    minimize=True,           # Protein minimization
-    min_with_lig=True,       # Includes the ligand during the minimization
     backbone_restraint=True, #  Restrains the backbone during the minimization
     cuda=False,              # Performs minimization on CPU instead of GPU
     discard_mols=None        # Special molecules to exclude. Per default everything, but peptides have to be defined manually
@@ -739,8 +732,6 @@ can be defined inside one Python script:
         library='dunbrack',           # Library used for choosing rotamers, options are: dunbrack or cmlib
         vdw_filter_thresh=100,       # Energy threshold of 100 kcal/mol
         dunbrack_filter_thresh=0.01, # rotamers having a lower probability of occuring are eventually discarded
-        include_native=True,         # Include the native rotamer at that position
-        ncpus=8                      # Number of CPUs to use
         )
 
     design.prepare_lig_conformers(
@@ -760,7 +751,6 @@ can be defined inside one Python script:
         method='grid',         #  Uses the grid method. Other option is random
         grid=sample_grid,      #  Defined grid for sampling
         vdw_filter_thresh=100, #  Energy threshold of 100 kcal/mol
-        ncpus=8,               #  Number of CPUs to use
         max_poses=10000        #  Maximum number of poses
     )
 
@@ -768,9 +758,6 @@ can be defined inside one Python script:
     # Calculate the binding and packing energies of all ligand poses and side chain rotamers against each other and against the fixed scaffold
     design.calculate_energies(
         scoring='vina',           #  Method to score protein-ligand interaction
-        score_packing=True,       #  Computes the packing energy using the Amber ff14SB or the CHARMM 36 force field
-        score_binding=True,       #  Scores protein-ligand binding interaction with the defined method
-        ncpus=8                   #  Number of CPUs to use
         )
 
     # Compute the lowest energy structures using linear programming

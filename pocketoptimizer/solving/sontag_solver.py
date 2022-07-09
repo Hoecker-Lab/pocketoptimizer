@@ -2,10 +2,9 @@ import os
 import tempfile as tf
 from shutil import copyfile, rmtree
 import subprocess
+from tqdm.auto import tqdm
 from typing import Dict, Union, NoReturn
 import logging
-
-from tqdm.auto import tqdm
 
 from pocketoptimizer.utility.index_mapper import IndexMapper
 
@@ -57,12 +56,13 @@ def run_sontag_solver(sol: int, sontag_params: Dict[str, Union[str, int, float]]
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = process.communicate()
 
-    if stderr:
-        logger.error(f'Sontag solver failed with the following error: {stderr.decode("ascii")}')
-        raise RuntimeError(f'Sontag solver failed with the following error: {stderr.decode("ascii")}')
-
     # check if result was produced and store it
     result_filename = 'res.txt'
+
+    if not os.path.isfile(result_filename):
+        logger.error(f'Sontag solver failed with the following exception: {stderr.decode("ascii")}.')
+        raise RuntimeError(f'Sontag solver failed with the following exception: {stderr.decode("ascii")}.')
+
     copyfile(result_filename, os.path.join(output_dir, 'res{sol:0=2d}.txt'))
     with open(result_filename) as resfile:
         solution_line = resfile.readlines()[0]
@@ -162,7 +162,7 @@ def calculate_design_solutions(solver_bin: str, temp_dir: str, out_path: str, nu
     os.chdir(tmp_dir)
 
     # since the solutions.txt file is opened in append mode, if it exists, it should be deleted,
-    # otherwise different results migh accumulate if called multiple times
+    # otherwise different results might accumulate if called multiple times
     try:
         os.remove(os.path.join(out_path, 'solutions', 'all_solutions.txt'))
     except FileNotFoundError:

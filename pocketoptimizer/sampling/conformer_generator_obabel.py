@@ -65,9 +65,14 @@ def generate_genetic(obabel_path: str, infile: str, outfile: str, nconfs: int = 
 
     """
     f_ext = os.path.splitext(infile)[-1][1:]
-    subprocess.call(
-        [obabel_path, f'-i{f_ext}', infile, '-opdb', '-O', outfile, '--conformer', '--nconf', str(nconfs),
-         '--score', score, '--writeconformers'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    conf_command = [obabel_path, f'-i{f_ext}', infile, '-opdb', '-O', outfile, '--conformer', '--nconf', str(nconfs),
+                    '--score', score, '--writeconformers']
+
+    process = subprocess.Popen(conf_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if process.returncode != 0:
+        logger.error(f'Obabel failed with the following error: {stderr.decode("ascii")}')
+        raise RuntimeError(f'Obabel failed with the following error: {stderr.decode("ascii")}')
     assert os.path.isfile(outfile)
 
 
@@ -92,9 +97,14 @@ def generate_confab(obabel_path: str, infile: str, outfile: str, nconfs: int = 1
 
     """
     f_ext = os.path.splitext(infile)[-1][1:]
-    subprocess.call(
-        [obabel_path, f'-i{f_ext}', infile, '-opdb', '-O', outfile, '--confab', '--conf', str(nconfs),
-         '--rcutoff', str(rcutoff), '--ecutoff', str(ecutoff)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    conf_command = [obabel_path, f'-i{f_ext}', infile, '-opdb', '-O', outfile, '--confab', '--conf', str(nconfs),
+                    '--rcutoff', str(rcutoff), '--ecutoff', str(ecutoff)]
+
+    process = subprocess.Popen(conf_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if process.returncode != 0:
+        logger.error(f'Obabel failed with the following error: {stderr.decode("ascii")}')
+        raise RuntimeError(f'Obabel failed with the following error: {stderr.decode("ascii")}')
     assert os.path.isfile(outfile)
 
 

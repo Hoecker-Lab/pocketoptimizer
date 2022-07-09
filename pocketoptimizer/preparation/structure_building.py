@@ -4,13 +4,13 @@ import shutil
 import subprocess
 from typing import List, Dict, Union, NoReturn
 import logging
-
 import htmd.builder.amber as amber
 import htmd.builder.charmm as charmm
 import numpy as np
 from moleculekit.tools.autosegment import autoSegment2
 from moleculekit.tools.preparation import systemPrepare
 from moleculekit.molecule import Molecule
+
 from pocketoptimizer.utility.utils import fix_parameters, DotDict
 from pocketoptimizer.preparation.aacodes import special2standard
 from pocketoptimizer.utility.utils import create_pairs
@@ -34,8 +34,8 @@ class SystemBuilder:
     Class providing system building functionalities to create systems for force field energy computations and minimization.
     """
     def __init__(self, work_dir: str, structure: str, forcefield: str, mutations: List[Dict[str, Union[str, List[str]]]] = None,
-                 obabel: str = 'obabel', antechamber: str = 'antechamber', parmchk2: str = 'parmchk2',
-                 match: str = '', tleap: str = 'tleap', psfgen: str = ''):
+                 ligand_params: DotDict = None,  peptide: bool = False, obabel: str = 'obabel', antechamber: str = 'antechamber',
+                 parmchk2: str = 'parmchk2', match: str = '', tleap: str = 'tleap', psfgen: str = ''):
         """
         Constructor method.
 
@@ -50,6 +50,10 @@ class SystemBuilder:
         mutations: list
             List of all mutations that should be build in the system. Contains dictionaries as list entries.
             The dictionary should contain 'chain', 'resid', 'mutations' as keys. [default: None]
+        ligand_params: DotDict
+            Containing paths to ligand parameter files [default: None]
+        peptide: bool
+            Whether to build for peptide [default: False]
         obabel: str
             Path to obabel binary [default: 'obabel']
         antechamber: str
@@ -67,15 +71,17 @@ class SystemBuilder:
         self.structure = structure
         self.forcefield = forcefield
         self.mutations = mutations
+        self.ligand_params = ligand_params
+        self.peptide = peptide
         self.obabel = obabel
         self.antechamber = antechamber
         self.parmchk2 = parmchk2
         self.match = match
         self.tleap = tleap
         self.psfgen = psfgen
-        self.ligand_params = None
 
-    def prepare_protein(self, prepared_protein: str, keep_chains: str, pH: float = 7.2, discard_mols: List[Dict[str, str]] = None) -> NoReturn:
+    def prepare_protein(self, prepared_protein: str, keep_chains: str, pH: float = 7.2,
+                        discard_mols: List[Dict[str, str]] = None) -> NoReturn:
         """
         Protein cleaning and protonation procedure using Moleculekit.
 
@@ -85,25 +91,27 @@ class SystemBuilder:
         Parameters
         ----------
         prepared_protein: str
-            Path to prepared protein (work_dir/scaffold/forcefield/protein_preparation/prepared_scaffold.pdb)
+            Path to write the prepared protein
         keep_chains: str
             Protein chain that will be extracted.
         pH: float
             pH value for side chain protonation. [default: 7.2]
         discard_mols: list
-            List of dictionaries containing chain and resid of the molecules to discard. In the case of amino acid ligands, these have to be manually discarded with this option. [default: None]
+            List of dictionaries containing chain and resid of the molecules to discard.
+            In the case of amino acid ligands, these have to be manually discarded with this option. [default: None]]
         """
-        # check if scaffold is already prepared
+        # check if protein is already prepared
         if not os.path.isfile(prepared_protein):
             logger.info('Starting protein preparation.')
             renumber = False
             with open(self.structure, 'r') as origin_scaffold:
                 for line in origin_scaffold:
-                    if line.startswith('ATOM') and line[17:20] != 'MOL':
-                            # Check if code for insertion residues
-                            if line[26] != ' ':
-                                renumber = True
-                                break
+                    if line.startswith('ATOM'):
+                        try:
+                            int(line[22:26])
+                        except ValueError:
+                            renumber = True
+                            break
 
             prot = Molecule(self.structure)
 
@@ -131,21 +139,77 @@ class SystemBuilder:
             logger.info(f'Protonate protein according to pH: {pH}.')
             prot_prep, prep_data = systemPrepare(prot, pH=pH, return_details=True, _molkit_ff=False)
 
+            os.makedirs(os.path.split(prepared_protein)[0], exist_ok=True)
             # Finding gaps so gaps can get caps
-            prot_prep_seg = autoSegment2(prot_prep, _logger=False)
+            prot_prep = autoSegment2(prot_prep, _logger=False)
 
-            prot_prep_seg.write(os.path.join(prepared_protein), type='pdb')
-            prep_data.to_excel(os.path.join(os.path.split(prepared_protein)[0], 'scaffold_report.xlsx'))
+            prot_prep.write(prepared_protein, type='pdb')
+            prep_data.to_excel(os.path.join(os.path.split(prepared_protein)[0], 'report.xlsx'))
+
             if not os.path.isfile(prepared_protein):
                 logger.error('Protein preparation failed.')
                 raise FileNotFoundError('Protein preparation failed.')
 
-            logger.info('Successfully prepared protein.')
-        else:
-            logger.info('Protein is already prepared, skip to minimization.')
+            # change scaffold name to prepared protein since new scaffold was prepared for building
+            self.structure = prepared_protein
 
-        # change scaffold name to prepared protein since new scaffold was prepared for building
-        self.structure = prepared_protein
+            logger.info('Successfully prepared protein structure.')
+        else:
+            logger.info('Protein is already prepared.')
+
+    def prepare_peptide(self, prepared_peptide: str, pH: float = 7.2) -> NoReturn:
+        """
+        Protein cleaning and protonation procedure using Moleculekit.
+
+        The wanted protein chain gets extracted and cleaned from ions, molecules etc.
+        Gaps in the protein are closed and the protein protonated according to pH 7.2
+
+        Parameters
+        ----------
+        prepared_peptide: str
+            Path to write the prepared protein
+        pH: float
+            pH value for side chain protonation. [default: 7.2]
+        """
+        # check if protein is already prepared
+        if not os.path.isfile(prepared_peptide):
+            logger.info('Starting peptide preparation.')
+            renumber = False
+            with open(self.structure, 'r') as origin_scaffold:
+                for line in origin_scaffold:
+                    if line.startswith('ATOM'):
+                        try:
+                            int(line[22:26])
+                        except ValueError:
+                            renumber = True
+                            break
+
+            peptide = Molecule(self.structure)
+
+            if renumber:
+                self.renumber_residues(prot=peptide)
+
+            # Adding hydrogens and protonating
+            logger.info(f'Protonate peptide according to pH: {pH}.')
+            prot_prep, prep_data = systemPrepare(peptide, pH=pH, return_details=True, _molkit_ff=False)
+
+            os.makedirs(os.path.split(prepared_peptide)[0], exist_ok=True)
+            prot_prep.set('chain', 'L')
+            prot_prep.set('segid', 'L')
+
+            prot_prep.write(prepared_peptide, type='pdb')
+            prep_data.to_excel(os.path.join(os.path.split(prepared_peptide)[0], 'report.xlsx'))
+
+            if not os.path.isfile(prepared_peptide):
+                logger.error('Peptide preparation failed.')
+                raise FileNotFoundError('Peptide preparation failed.')
+
+            # change scaffold name to prepared protein since new scaffold was prepared for building
+            self.structure = prepared_peptide
+
+            logger.info('Successfully prepared peptide structure.')
+        else:
+            logger.info('Peptide is already prepared.')
 
     def renumber_residues(self, prot: Molecule):
         """
@@ -196,35 +260,39 @@ class SystemBuilder:
             logger.error(f'{self.forcefield} not implemented.')
             raise ValueError(f'{self.forcefield} not implemented.')
 
-    def build_apo(self) -> NoReturn:
-        """Builds proteins for force field computations without ligand.
+    def build_peptide(self) -> NoReturn:
+        """Builds a peptide
 
         This procedure buils an apo protein.
         """
         # Path to protonated scaffold
-        prot = Molecule(self.structure)
+        peptide = Molecule(self.structure)
 
         # mutate non-standard residues to prevent errors in building
         for non_standard, standard in special2standard.items():
-            if non_standard in prot.resname:
+            if non_standard in peptide.resname:
                 logger.info(f'Non-standard amino acid: {non_standard} found in protein, converting to: {standard}.')
-                prot.mutateResidue(sel=f'resname {non_standard}', newres=standard)
-        if 'UNK' in prot.resname:
+                peptide.mutateResidue(sel=f'resname {non_standard}', newres=standard)
+        if 'UNK' in peptide.resname:
             logger.error('Unknown amino acid in protein. No parametrization in system building possible. Remove it from protein or provide parameters.')
             raise RuntimeError('Unknown amino acid in protein. No parametrization in system building possible. Remove it from protein or provide parameters.')
+        if self.mutations:
+            self.mutate_peptide(struc=peptide)
 
-        # Path to write prepared apo protein
-        native_apo_path = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', 'native_apo')
-        if not os.path.isfile(os.path.join(native_apo_path, 'structure.pdb')):
-            logger.info('Build native apo protein.')
-            self.build_ff(
-                structure=prot,
-                outdir=native_apo_path,
-            )
         else:
-            logger.info('Native apo protein already built.')
+            if not os.path.isfile(os.path.join(self.ligand_params.params_folder, 'structure.pdb')):
+                logger.info('Build native protein.')
+                self.build_ff(
+                    structure=peptide,
+                    outdir=self.ligand_params.params_folder,
+                )
+            else:
+                logger.info('Peptide already built.')
 
-    def build_complex(self, ligand: str, ligand_params: DotDict, sampling_pocket: str = 'GLY') -> NoReturn:
+        # Copy the structure since atom orders can be changed
+        shutil.copy(os.path.join(self.ligand_params.params_folder, 'structure.pdb'), os.path.join('..', 'ligand.pdb'))
+
+    def build_complex(self, ligand: str, sampling_pocket: str = 'GLY') -> NoReturn:
         """Builds proteins for force field computations with ligand inside.
 
         Force field computations need .param/.psf files for proteins or .frcmod/.rtf/.prm files for ligands, depending on the force field.
@@ -240,14 +308,10 @@ class SystemBuilder:
         ----------
         ligand: str
             Path to ligand.sdf file
-        ligand_params: Dot Dicitonary
-            Containing paths to ligand parameter files
         sampling_pocket: str
             What type of sampling pockets to build for rotamer and ligand pose sampling procedures
             In theory every pocket is possible, but only glycine and alanine are meanigful [default: GLY]
         """
-        # Set ligand params as class attribute
-        self.ligand_params = ligand_params
         # Path to prepared ligand
         ligand = os.path.join(ligand)
         # Merge scaffold and ligand into one molecule
@@ -256,7 +320,8 @@ class SystemBuilder:
         lig = Molecule(ligand)
         lig.set('segid', 'L')
         lig.set('chain', 'L')
-        lig.set('resname', 'MOL')
+        if not self.peptide:
+            lig.set('resname', 'MOL')
 
         # mutate non-standard residues to prevent errors in building
         for non_standard, standard in special2standard.items():
@@ -290,17 +355,14 @@ class SystemBuilder:
             self.ligand_sampling_pocket(struc=mol, sampling_pocket=sampling_pocket)
 
             # Build scaffolds with only a single mutation
-            self.build_single_mut(struc=mol)
-
-            # Build rotamer sampling pockets, where design positions are mutated to glycine
-            self.rotamer_sampling_pocket(struc=mol, sampling_pocket=sampling_pocket)
+            self.build_single_mut(struc=mol, sampling_pocket=sampling_pocket)
 
             # Build scaffolds containing pairwise mutations
             self.build_pair_mut(struc=mol)
 
-    def rotamer_sampling_pocket(self, struc: Molecule, sampling_pocket: str) -> NoReturn:
+    def build_single_mut(self, struc: Molecule, sampling_pocket: str) -> NoReturn:
         """
-        Builds a glycine pocket to sample rotamers
+        Builds scaffolds with single mutations, where all other positions are mutated to either glycine or alanine
 
         Parameters
         ----------
@@ -308,29 +370,32 @@ class SystemBuilder:
             Object of molecule which will be mutated
         sampling_pocket: str
             What type of sampling pockets to build for rotamer and ligand pose sampling procedures
-            In theory every pocket is possible, but only glycine and alanine are meanigful
+            In theory every pocket is possible, but only glycine and alanine are meaningful
 
         """
         # Build always again, since mutations could have changed
         for position in self.mutations:
             chain, resid = position['chain'], position['resid']
             for resname in position["mutations"]:
-                sample_pocket_path = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', f'{chain}_{resid}_{resname}_sampling_pocket')
-                if not os.path.isfile(os.path.join(sample_pocket_path, 'structure.pdb')):
-                    logger.info(f'Build sampling pocket for residue: {chain}_{resid}_{resname}.')
+                outpath = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', f'{chain}_{resid}_{resname}')
+                if not os.path.isfile(os.path.join(outpath, 'structure.pdb')):
+                    logger.info(f'Build mutation {chain}_{resid}_{resname}.')
                     sample_structure = struc.copy()
                     for other_position in self.mutations:
-                        if other_position['chain'] == chain and other_position['resid'] == resid:
-                            sample_structure.mutateResidue(sel=f'chain {other_position["chain"]} and resid {other_position["resid"]}', newres=resname)
-                        else:
+                        # Other position: mutate to glycine or alanine
+                        if not other_position['chain'] == chain or not other_position['resid'] == resid:
                             sample_structure.mutateResidue(sel=f'chain {other_position["chain"]} and resid {other_position["resid"]}', newres=sampling_pocket)
-
+                        # Same position
+                        else:
+                            # Residue is mutated otherwise Keep unmutated residues from the minimized structure
+                            if not resname == sample_structure.get('resname', f'chain {chain} and resid {resid}')[0]:
+                                sample_structure.mutateResidue(sel=f'chain {other_position["chain"]} and resid {other_position["resid"]}', newres=resname)
                     self.build_ff(
                         structure=sample_structure,
-                        outdir=sample_pocket_path
+                        outdir=outpath
                     )
                 else:
-                    logger.info(f'Sampling pocket for residue: {chain}_{resid}_{resname}, already built.')
+                    logger.info(f'Mutation {chain}_{resid}_{resname}, already built.')
 
     def ligand_sampling_pocket(self, struc: Molecule, sampling_pocket: str) -> NoReturn:
         """
@@ -359,35 +424,6 @@ class SystemBuilder:
         else:
             logger.info('Ligand sampling pocket already built.')
 
-    def build_single_mut(self, struc: Molecule) -> NoReturn:
-        """ Builds a scaffold with single mutation inside
-
-        Parameters
-        ----------
-        struc: :class: moleculekit.molecule.Molecule
-            Object of molecule which will be mutated
-        sampling_pocket: str
-            What type of sampling pockets to build for rotamer and ligand pose sampling procedures
-            In theory every pocket is possible, but only glycine and alanine are meanigful
-        """
-        # Build always again, since mutations could have changed
-        for position in self.mutations:
-            chain, resid = position['chain'], position['resid']
-            for aa in position['mutations']:
-                mut_structure = struc.copy()
-                scaffold_name = f'{chain}_{resid}_{aa}'
-                outpath = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', scaffold_name)
-                if not os.path.isfile(os.path.join(outpath, 'structure.pdb')):
-                    logger.info(f'Build scaffold {scaffold_name}.')
-                    mut_structure.mutateResidue(sel=f'chain {chain} and resid {resid}', newres=aa)
-
-                    self.build_ff(
-                        structure=mut_structure,
-                        outdir=outpath,
-                    )
-                else:
-                    logger.info(f'Scaffold {scaffold_name} already built.')
-
     def build_pair_mut(self, struc: Molecule) -> NoReturn:
         """ Builds a scaffold with two mutations inside.
 
@@ -411,7 +447,7 @@ class SystemBuilder:
             outpath = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', scaffold_name)
 
             if not os.path.isfile(os.path.join(outpath, 'structure.pdb')):
-                logger.info(f'Build scaffold {scaffold_name}.')
+                logger.info(f'Build mutations {scaffold_name}.')
                 mut_structure.mutateResidue(sel=f'chain {chain_a} and resid {resid_a}', newres=resname_a)
                 mut_structure.mutateResidue(sel=f'chain {chain_b} and resid {resid_b}', newres=resname_b)
 
@@ -419,7 +455,29 @@ class SystemBuilder:
                     structure=mut_structure,
                     outdir=outpath)
             else:
-                logger.info(f'Scaffold {scaffold_name} already build.')
+                logger.info(f'Mutations {scaffold_name} already build.')
+
+    def mutate_peptide(self, struc: Molecule) -> NoReturn:
+        """ Builds a  peptide with all mutations defined in self.mutations
+
+        Parameters
+        ----------
+        struc: :class: moleculekit.molecule.Molecule
+            Object of molecule which will be mutated
+        """
+        if not os.path.isfile(os.path.join(self.ligand_params.params_folder, 'structure.pdb')):
+            mut_structure = struc.copy()
+            for position in self.mutations:
+                chain, resid, aa = position['chain'], position['resid'], position['mutation']
+                logger.info(f'Mutate resid {resid} to {aa}.')
+                mut_structure.mutateResidue(sel=f'chain {chain} and resid {resid}', newres=aa)
+
+            self.build_ff(
+                structure=mut_structure,
+                outdir=self.ligand_params.params_folder,
+            )
+        else:
+            logger.info(f'Mutated peptide already built.')
 
     def build_ff(self, structure: Molecule, outdir: str, renumber: bool = True) -> NoReturn:
         """ Basic force field building function.
@@ -439,7 +497,7 @@ class SystemBuilder:
         # Create the output directories
         os.makedirs(outdir, exist_ok=True)
         # Load default force field parameters
-        if self.ligand_params:
+        if self.ligand_params and not self.peptide:
             topo, param = self.get_ff_params(lig_mol2=self.ligand_params.mol2, lig_frcmod=self.ligand_params.frcmod,
                                             lig_rtf=self.ligand_params.rtf, lig_prm=self.ligand_params.prm)
         else:
@@ -521,8 +579,15 @@ class SystemBuilder:
             raise ValueError('No valid force field defined!')
 
         bmol = autoSegment2(bmol, _logger=False)
-        bmol.set('segid', 'L', 'resname MOL')
-        bmol.set('chain', 'L', 'resname MOL')
+
+        if not self.peptide:
+            bmol.set('segid', 'L', f'resname MOL')
+            bmol.set('chain', 'L', f'resname MOL')
+        else:
+            lig_segid = bmol.get('segid')[-1]
+            bmol.set('segid', 'L', f'segid {lig_segid}')
+            bmol.set('chain', 'L', f'segid {lig_segid}')
+
         segids = list(filter(None, np.unique(bmol.segid)))  # Filter empty strings that can be assigned because of ligands
         # fixed: set chain name of every segment to chain name of segment in original structure.
         # reason: If one chain contained several segments (chain breaks) these segments got no chain name at all
@@ -575,12 +640,10 @@ class SystemBuilder:
             logger.error(f'Could not open: {self.structure}.')
             raise FileNotFoundError(f'Could not open: {self.structure}.')
 
-        # Create and navigate to params folder
-        params_folder = os.path.join(self.work_dir, 'ligand', self.forcefield, 'params')
-        ligand_mol2 = os.path.join(params_folder, 'ligand.mol2')
-        ligand_pdb = os.path.join(params_folder, 'ligand.pdb')
-        os.makedirs(params_folder, exist_ok=True)
-        os.chdir(params_folder)
+        ligand_mol2 = os.path.join(self.ligand_params.params_folder, 'ligand.mol2')
+        ligand_pdb = os.path.join(self.ligand_params.params_folder, 'ligand.pdb')
+        os.makedirs(self.ligand_params.params_folder, exist_ok=True)
+        os.chdir(self.ligand_params.params_folder)
 
         # Remove all protons and convert to mol2
         ligand = Molecule(self.structure)
@@ -598,10 +661,8 @@ class SystemBuilder:
                 logger.error(f'Obabel failed with the following exception: {stderr.decode("ascii")}')
                 raise RuntimeError(f'Obabel failed with the following error: {stderr.decode("ascii")}')
 
-        # Calculate netcharge for parameterization, set resid to 1
+        # Calculate netcharge for parameterization
         ligand = Molecule(ligand_mol2)
-        if len(np.unique(ligand.resid)) > 1:
-            ligand.set('resid', '1')
         netcharge = str(round(np.sum(ligand.charge)))
         ligand.write(ligand_pdb)
 
@@ -615,8 +676,8 @@ class SystemBuilder:
             logger.error(f'Antechamber failed with the following exception: {stderr.decode("ascii")}')
             raise RuntimeError(f'Antechamber failed with the following error: {stderr.decode("ascii")}')
 
-        # Move the prepared ligand
-        shutil.move(ligand_mol2, os.path.join('..', 'ligand.mol2'))
+        # Copy prepared ligand
+        shutil.copy(ligand_mol2, os.path.join('..', 'ligand.mol2'))
 
         # Convert atomtypes to GAFF2 for AMBER
         if self.forcefield.startswith('amber'):

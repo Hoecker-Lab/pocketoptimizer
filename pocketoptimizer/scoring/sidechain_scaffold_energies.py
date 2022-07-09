@@ -8,7 +8,6 @@ from ffevaluation.ffevaluate import FFEvaluate
 from moleculekit.molecule import Molecule
 from tqdm.auto import tqdm
 
-
 logging.root.handlers = []
 logging.basicConfig(
     level=logging.INFO,
@@ -22,7 +21,7 @@ logging.basicConfig(
 logger = logging.getLogger('pocketoptimizer.scoring.sidechain_scaffold_energies')
 
 
-def calculate_energy(id: int, structure: Molecule, ffev: FFEvaluate, res_coords: np.ndarray, resid: str, chain: str) -> Tuple[float]:
+def calculate_energy(id: int, structure: Molecule, ffev: FFEvaluate, res_coords: np.ndarray, resid: str, chain: str) -> Tuple[np.float]:
     """
     Calculating the energy between a rotamer and the fixed protein scaffold
 
@@ -71,7 +70,7 @@ def calculate_scaffold(work_dir: str, rotamer_path: str, mutations: List[Dict[st
     ncpus: int
         Number of CPUs to use for sidechain scaffold scoring [default: 1]
     """
-    from pocketoptimizer.utility.utils import load_ff_parameters, write_energies
+    from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
 
     logger.info(f'Compute energies using forcefield: {forcefield}.')
 
@@ -136,8 +135,8 @@ def calculate_scaffold(work_dir: str, rotamer_path: str, mutations: List[Dict[st
                             ffev=ffev,
                             res_coords=mol.coords,
                             resid=resid,
-                            chain=chain),
-                            np.arange(nconfs))):
+                            chain=chain), np.arange(nconfs),
+                            chunksize=calculate_chunks(nposes=nconfs, ncpus=ncpus))):
                         self_nrgs[index] = energy
                         pbar.update()
 

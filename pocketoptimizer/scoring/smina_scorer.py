@@ -1,4 +1,3 @@
-import multiprocessing as mp
 import os
 import shutil
 import subprocess
@@ -37,7 +36,8 @@ class SminaScorer:
     # But since it does not make any difference in scores it has been removed
 
     def __init__(self, ligand: str, ligand_poses: str, scaffold: str, project_path: str, scoring_method: str,
-                 forcefield: str, rotamer_path: str, smina_path: str, obabel_path: str):
+                 forcefield: str, rotamer_path: str, smina_path: str, peptide: bool = False, tmp_dir: str = '/tmp/',
+                 obabel: str = 'obabel'):
         """
         Initializes a :class: SminaScorer object
 
@@ -61,8 +61,12 @@ class SminaScorer:
             Path to sampled side chain rotamers
         smina_path: str
             Path to smina binary
+        peptide: bool
+            Whether ligand is a peptide
+        tmp_dir: str
+            path to temporary directory [default: '/tmp/']
         obabel_path: str
-            Path to obabel binary
+            Path to obabel binary [default: 'obabel']
         """
         self.ligand = ligand
         self.ligand_poses = ligand_poses
@@ -105,15 +109,17 @@ class SminaScorer:
                 'num_tors_add': 0.2744
             }
         }
+        if self.scoring_method not in self.smina_weights.keys():
+            logger.error(f'{self.scoring_method} is not a valid scoring method. Valid methods are:'
+                         f' vina, vinardo, dkoes_scoring, ad4_scoring.')
+            raise ValueError(f'{self.scoring_method} is not a valid scoring method. Valid methods are:'
+                             f' vina, vinardo, dkoes_scoring, ad4_scoring.')
         self.forcefield = forcefield
         self.rotamer_path = rotamer_path
         self.smina = smina_path
-        self.obabel = obabel_path
-        if self.scoring_method not in self.smina_weights.keys():
-            logger.error(f'{self.scoring_method} is not a valid scoring method. Valid methods are:'
-                             f' vina, vinardo, dkoes_scoring, ad4_scoring.')
-            raise ValueError(f'{self.scoring_method} is not a valid scoring method. Valid methods are:'
-                             f' vina, vinardo, dkoes_scoring, ad4_scoring.')
+        self.peptide = peptide
+        self.tmp_dir = tmp_dir
+        self.obabel = obabel
 
     def parse_smina(self, smina_output: str, nposes: int) -> np.ndarray:
         """
@@ -221,11 +227,25 @@ class SminaScorer:
         outfile: str
             Name of combined output file
         """
-        with open(outfile, 'w') as combined_file:
-            for i in range(poses):
-                with open(f'ligand_pose_{i}.mol2', 'r') as pose_file:
-                    for line in pose_file:
-                        combined_file.write(line)
+        # Just parse the mol2 files together
+        if not self.peptide:
+            with open(outfile, 'w') as combined_file:
+                for pose_id in range(poses):
+                    with open(f'ligand_pose_{pose_id}.mol2', 'r') as pose_file:
+                        for line in pose_file:
+                            combined_file.write(line)
+        # Conversion to mol2 needed in order to score multiple peptides with smina
+        else:
+            pose_files = []
+            for pose_id in range(poses):
+                pose_files.append(os.path.join(self.tmp_dir, f'ligand_pose_{pose_id}.pdb'))
+
+            merge_command = [self.obabel, *pose_files, '-O', outfile]
+            process = subprocess.Popen(merge_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = process.communicate()
+            if process.returncode != 0:
+                logger.error(f'Obabel failed with the following exception: {stderr.decode("ascii")}')
+                raise RuntimeError(f'Obabel failed with the following error: {stderr.decode("ascii")}')
 
     def score_smina(self, receptor: str, ligand: str, nposes: int, ncpus: int = 1) -> Dict[str, float]:
         """
@@ -247,7 +267,7 @@ class SminaScorer:
         List of dictionaries containing different energy terms as keys and weighted energy values as values ({'gauss1': energy,..})
         """
 
-        command = [
+        score_command = [
             self.smina,
             '--receptor', receptor,
             '--ligand', ligand,
@@ -255,10 +275,11 @@ class SminaScorer:
             '--cpu', str(ncpus),
             '--scoring', self.scoring_method
         ]
-        process = subprocess.run(command, capture_output=True)
+        process = subprocess.run(score_command, capture_output=True)
         return self.parse_smina(process.stdout.decode('ascii'), nposes=nposes)
 
-    def run_smina_scorer(self, mutations: List[Dict[str, Union[str, List[str]]]], temp_dir: str = '/tmp/', ncpus: int = mp.cpu_count(), _keep_tmp: bool = False) -> None or NoReturn:
+    def run_smina_scorer(self, mutations: List[Dict[str, Union[str, List[str]]]],
+                         ncpus: int = 1, _keep_tmp: bool = True) -> None or NoReturn:
         """
         Wrapper to run smina ligand protein interaction energy scoring
         Reading in ligand structure (ligand.mol2) and ligand poses from starting pose ligand_poses.pdb and ligand_poses.xtc trajectory
@@ -267,9 +288,6 @@ class SminaScorer:
         ----------
         mutations: List[Dict]
             List of dictionaries defining the mutations at different positions
-        temp_dir: str
-            Name of temporary directory to create a temporary directory in containing
-            all .pdb files for rotamers and ligand pose .mol2 files [default: '/tmp/']
         ncpus: int
             Number of CPUs to use for scoring [default: number of CPUs in the system]
         _keep_tmp: bool
@@ -281,14 +299,20 @@ class SminaScorer:
         weights = [weight for weight in self.smina_weights[self.scoring_method].keys()]
 
         # Output ligand scaffold energy
-        self.lig_scaff = os.path.join(self.project_path, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'ligand_scaffold_{self.scoring_method}')
+        self.lig_scaff = os.path.join(self.project_path,
+                                      'energies',
+                                      f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}',
+                                      f'ligand_scaffold_{self.scoring_method}')
         os.makedirs(self.lig_scaff, exist_ok=True)
         # Output ligand side chain energies
-        self.lig_side = os.path.join(self.project_path, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'ligand_sidechain_{self.scoring_method}')
+        self.lig_side = os.path.join(self.project_path,
+                                     'energies',
+                                     f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}',
+                                     f'ligand_sidechain_{self.scoring_method}')
         os.makedirs(self.lig_side, exist_ok=True)
 
-        tmp_dir = tf.mkdtemp(dir=temp_dir, prefix=f'calculateLigand{self.scoring_method}_')
-        os.chdir(tmp_dir)
+        self.tmp_dir = tf.mkdtemp(dir=self.tmp_dir, prefix=f'calculateLigand{self.scoring_method}_')
+        os.chdir(self.tmp_dir)
 
         ligand = Molecule(self.ligand)
 
@@ -301,14 +325,20 @@ class SminaScorer:
 
         nposes = ligand_poses.coords.shape[-1]
 
-        # Create ligand conformer .mol2 files
+        if not self.peptide:
+            ftype = 'mol2'
+        else:
+            ftype = 'pdb'
+
+        # Create combined ligand pose file
         for pose in range(nposes):
             ligand.coords = ligand_poses.coords[:, :, pose].reshape(ligand_poses.coords.shape[0], 3, 1)
-            pose_mol2 = f'ligand_pose_{pose}.mol2'
-            ligand.write(pose_mol2)
-        # Combine mol2 files
-        lig_outfile = 'ligand_poses.mol2'
-        self.combine_ligand(nposes, lig_outfile)
+            pose = f'ligand_pose_{pose}.{ftype}'
+            ligand.write(pose)
+        # Combine poses
+        lig_outfile = os.path.join(self.tmp_dir, f'ligand_poses.mol2')
+        self.combine_ligand(poses=nposes,
+                            outfile=lig_outfile)
 
         # Score ligand against fixed scaffold
         lig_scaffold_outfile = os.path.join(self.lig_scaff, 'ligand.csv')
@@ -327,8 +357,7 @@ class SminaScorer:
                            energies=self_nrgs,
                            energy_terms=weights,
                            name_a='ligand_pose',
-                           nconfs_a=nposes
-                           )
+                           nconfs_a=nposes)
 
         # Score ligand against sidechains
         # Loop over all mutations/flexible residues
@@ -349,8 +378,7 @@ class SminaScorer:
 
                 except FileNotFoundError:
                     logger.error(f'Missing rotamer for residue: {chain}_{resid}_{resname}.')
-                    raise FileNotFoundError(
-                        f'Missing rotamer for residue: {chain}_{resid}_{resname}.')
+                    raise FileNotFoundError(f'Missing rotamer for residue: {chain}_{resid}_{resname}.')
 
                 # select only sidechain
                 sidechain.filter('sidechain', _logger=False)
@@ -383,7 +411,7 @@ class SminaScorer:
                                nconfs_b=nrots)
 
         if not _keep_tmp:
-            if os.path.isdir(tmp_dir):
-                shutil.rmtree(tmp_dir)
+            if os.path.isdir(self.tmp_dir):
+                shutil.rmtree(self.tmp_dir)
 
         logger.info('Ligand scoring was successful.')

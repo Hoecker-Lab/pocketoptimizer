@@ -164,7 +164,7 @@ class IndexMapper:
 
         # Count the number of frames, which corresponds to the number of ligand poses
         self._conformer_counts['ligand'] = {}
-        self._conformer_counts['ligand']['ligand'] = ligand_poses.numFrames
+        self._conformer_counts['ligand']['ligand'] = ligand_poses.coords.shape[-1]
 
     def write_index_file(self, filename: str) -> NoReturn:
         """

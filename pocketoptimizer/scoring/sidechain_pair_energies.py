@@ -9,7 +9,6 @@ from ffevaluation.ffevaluate import FFEvaluate
 from moleculekit.molecule import Molecule
 from tqdm.auto import tqdm
 
-
 logging.root.handlers = []
 logging.basicConfig(
     level=logging.INFO,
@@ -24,7 +23,7 @@ logger = logging.getLogger('pocketoptimizer.scoring.sidechain_pair_energies')
 
 
 def calculate_energy(ids: Tuple[int], structure: Molecule, ffev: FFEvaluate, res_a_coords: np.ndarray, res_b_coords: np.ndarray,\
-                     resid_a: str, resid_b: str, chain_a: str, chain_b: str) -> Tuple[float]:
+                     resid_a: str, resid_b: str, chain_a: str, chain_b: str) -> Tuple[np.float]:
     """
     Calculating the energy between two rotamers at two different positions
 
@@ -80,7 +79,7 @@ def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, 
     ncpus: int
         Number of CPUs to use for sidechain scaffold scoring [default: 1]
     """
-    from pocketoptimizer.utility.utils import load_ff_parameters, create_pairs, write_energies
+    from pocketoptimizer.utility.utils import load_ff_parameters, create_pairs, write_energies, calculate_chunks
 
     logger.info(f'Compute energies using forcefield: {forcefield}.')
 
@@ -114,9 +113,6 @@ def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, 
         except FileNotFoundError:
             logger.error(f'Missing rotamer for residue: {chain_b_resid_b}_{resname_b}.')
             raise FileNotFoundError(f'Missing rotamer for residue: {chain_b_resid_b}_{resname_b}.')
-        # Get number of rotamers
-        nconfs_a = res_a.coords.shape[-1]
-        nconfs_b = res_b.coords.shape[-1]
 
         # Create output path from residues of pair
         structure_path = os.path.join(work_dir, 'scaffold', forcefield, 'protein_params',
@@ -129,7 +125,6 @@ def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, 
 
         logger.info(
             f'Sidechain-Sidechain-Interaction-Energies for Residue-Pair: {chain_a}_{resid_a}_{resname_a}/{chain_b}_{resid_b}_{resname_b} not computed yet.')
-        combinations = nconfs_a * nconfs_b
 
         struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=forcefield)
 
@@ -149,7 +144,7 @@ def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, 
         pair_nrgs = np.zeros((nconfs_a, nconfs_b * 2))
 
         with mp.Pool(processes=ncpus) as pool:
-            with tqdm(total=combinations) as pbar:
+            with tqdm(total=len(batch)) as pbar:
                 pbar.set_description(
                     f'{chain_a}_{resid_a}_{resname_a}/'
                     f'{chain_b}_{resid_b}_{resname_b}')
@@ -163,7 +158,8 @@ def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, 
                         resid_b=resid_b,
                         chain_a=chain_a,
                         chain_b=chain_b),
-                        batch)):
+                        batch,
+                        chunksize=calculate_chunks(nposes=len(batch), ncpus=ncpus))):
                     pair_nrgs[batch[index][0], batch[index][1]*2:batch[index][1]*2 + 2] = energy
                     pbar.update()
 

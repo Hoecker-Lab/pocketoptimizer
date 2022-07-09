@@ -10,7 +10,6 @@ import parmed
 import numpy as np
 import pandas as pd
 from moleculekit.molecule import Molecule
-from rdkit import Chem
 
 logging.root.handlers = []
 logging.basicConfig(
@@ -27,7 +26,7 @@ logger = logging.getLogger('pocketoptimizer.utilities')
 
 class MutationProcessor:
 
-    def __init__(self, scaffold: str, mutations: List[Dict[str, Union[str, List[str]]]]):
+    def __init__(self, structure: str, mutations: List[Dict[str, Union[str, List[str]]]]):
         """
         Constructor Method.
 
@@ -39,16 +38,17 @@ class MutationProcessor:
 
         Parameters
         ----------
-        scaffold : str
+        structure : str
             Path to the prepared and minimized PDB structure file.
         mutations: list
             List of Dictionaries containing mutations with their corresponding resids and chains
         """
         try:
-            self.structure = Molecule(scaffold)
+            self.structure = Molecule(structure)
         except FileNotFoundError:
-            logger.error(f'Could not find: {scaffold}.')
-            raise FileNotFoundError(f'Could not find: {scaffold}.')
+            logger.error(f'Could not find: {structure}.')
+            raise FileNotFoundError(f'Could not find: {structure}.')
+        self.mutations = mutations
         self.aa = {
             'ALL': ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY',
                     'ILE', 'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL'],
@@ -61,7 +61,6 @@ class MutationProcessor:
             'SULF': ['CYS', 'MET'],
             'HIS': ['HID', 'HIE', 'HIP']
         }
-        self.mutations = mutations
 
     def check_positions(self) -> NoReturn:
         """
@@ -78,22 +77,19 @@ class MutationProcessor:
             index = self.structure.get('index', f'chain {chain} and resid {resid} and name CA')
             cystine = self.structure.get('resname', sel=f'chain {chain} and resid {resid} and name CA') == 'CYX'
 
-            include = True
-
             if not len(index):
-                include = False
                 logger.warning(f'Position: {chain}_{resid} is not in the protein.')
-            if cystine:
+                continue
+            elif cystine:
                 logger.warning(f'Position: {chain}_{resid} was removed because it is involved in a disulfide bond.')
-                include = False
-            if int(resid) == min(self.structure.get('resid', sel=f'segid {segid[0]}')):
+                continue
+            elif int(resid) == min(self.structure.get('resid', sel=f'segid {segid[0]}')):
                 logger.warning(f'Position: {chain}_{resid} is the N-terminus of segment: {segid[0]}.')
-                include = False
+                continue
             elif int(resid) == max(self.structure.get('resid', sel=f'segid {segid[0]}')):
                 logger.warning(f'Position: {chain}_{resid} is the C-terminus of segment: {segid[0]}.')
-                include = False
-
-            if include:
+                continue
+            else:
                 updated_mutations.append(mutation)
 
         self.mutations = updated_mutations
@@ -112,7 +108,7 @@ class MutationProcessor:
             mutations = position['mutations']
 
             # Make mutations upper case
-            mutations = [str(mutation).upper() for mutation in mutations]
+            mutations = [str(mutation).upper().strip() for mutation in mutations]
             corrected_mutations = []
 
             # Replace keywords and check if aa is defined
@@ -162,7 +158,7 @@ class MutationProcessor:
         Dictionary containing lists of mutations sorted after N-and C-terminus
         """
 
-        terminus_positions = {}
+        termini_positions = {}
 
         for mutation in self.mutations:
             chain = mutation['chain']
@@ -170,12 +166,12 @@ class MutationProcessor:
             segid = self.structure.get("segid", sel=f"chain {chain} and resid {resid} and name CA")
             if int(resid) == min(self.structure.get('resid', sel=f'segid {segid[0]}')):
                 logger.warning(f'Position: {chain}_{resid} is the N-terminus of segment: {segid[0]}.')
-                terminus_positions.setdefault('N-terminus', [f'{chain}_{resid}']).append(f'{chain}_{resid}')
+                termini_positions.setdefault('N-terminus', [f'{chain}_{resid}']).append(f'{chain}_{resid}')
             elif int(resid) == max(self.structure.get('resid', sel=f'segid {segid[0]}')):
                 logger.warning(f'Position: {chain}_{resid} is the C-terminus of segment: {segid[0]}.')
-                terminus_positions.setdefault('C-terminus', [f'{chain}_{resid}']).append(f'{chain}_{resid}')
+                termini_positions.setdefault('C-terminus', [f'{chain}_{resid}']).append(f'{chain}_{resid}')
 
-        return terminus_positions
+        return termini_positions
 
     def sort_mutations(self) -> NoReturn:
         """
@@ -205,36 +201,6 @@ class MutationProcessor:
         self.sort_mutations()
 
         return self.mutations
-
-# EDIT 03/2021: If TRP is used as an input ligand in .mol file type, try converting it to .mol2 with obabel
-# and remove atom names to make it not be recognized as a protein.
-def is_trp(ligand: str) -> bool:
-    """
-    Check if an input ligand is TRP.
-
-    Parameters
-    ----------
-    ligand: str
-        Path to ligand
-
-    Returns
-    -------
-    True if ligand is TRP, otherwise False
-    """
-    with open(ligand) as rf:
-        from collections import defaultdict
-        atoms = defaultdict(int)
-        found_first_atm = False
-        for line in rf:
-            if len(line.split()) > 7:
-                found_first_atm = True
-                atoms[line.split()[3]] += 1
-            elif found_first_atm:
-                break
-        if "C" in atoms and "N" in atoms and "O" in atoms:
-            if atoms["C"] == 11 and atoms["N"] == 2 and atoms["O"] == 2:
-                return True
-    return False
 
 
 def create_pairs(mutations: List[Dict[str, Union[str, List[str]]]]) -> List[List[str]]:
@@ -377,6 +343,29 @@ def write_energies(outpath: str, energies: np.ndarray, energy_terms: List[str], 
     df.columns = columns
 
     df.to_csv(outpath, header=True, index=False, sep='\t')
+
+
+def calculate_chunks(nposes: int, ncpus: int) -> int:
+    """
+    Calculates the size of the chunks for multiprocessing by dividing the number of
+    poses by the number of available CPUs times 4
+
+    Parameters
+    ----------
+    nposes: int
+        Number of poses
+    ncpus: int
+        Number of available CPUs
+
+    Returns
+    -------
+    Size of each chunk
+    """
+
+    chunksize, extra = divmod(nposes, ncpus * 4)
+    if extra:
+        chunksize += 1
+    return chunksize
 
 
 class DotDict(dict):

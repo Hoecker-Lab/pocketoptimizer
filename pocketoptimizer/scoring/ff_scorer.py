@@ -1,3 +1,4 @@
+import itertools
 import multiprocessing as mp
 import os
 from functools import partial
@@ -56,20 +57,18 @@ class FFScorer:
         self.lig_side = ''
 
     @staticmethod
-    def calculate_ff(pose: int, struc: Molecule, ffev: FFEvaluate,
-                     pair: bool, rot_coords: np.ndarray = None, rotamer: int = None, pose_coords: np.ndarray = None, resid: str = None, chain: str = None) -> Tuple[float]:
+    def calculate_ff(poses: Tuple[int], struc: Molecule, ffev: FFEvaluate, pose_coords: np.ndarray = None,
+                     rot_coords: np.ndarray = None, resid: str = None, chain: str = None) -> Tuple[np.float]:
         """Calculates the force field components and returns the energies
 
         Parameters
         ----------
-        pose:  int
-            Ligand pose to score
+        pose: tuple
+            Tuple of ligand pose and rotamer id
         struc: :class: moleculekit.Molecule
             Object of Molecule to set the rotamer coordinates
         ffev: :class:ffevaluation.ffevaluate.FFevaluate
             Object to calculate the energies from between sets ligand and side chain/scaffold
-        pair: bool
-            If the calculation is pairwise or against scaffold
         rot_coords: list
             Rotamer coordinates np.array(natoms, 3, nrots)
         pose_coords: list
@@ -81,11 +80,11 @@ class FFScorer:
         -------
         Tuple containing vdW and electrostatic energy for the scored ligand pose
         """
-        if pair:
-            struc.set('coords', rot_coords[..., rotamer], f'chain {chain} and resid {resid}')
+        if len(poses) == 2:
+            struc.set('coords', rot_coords[..., poses[1]], f'chain {chain} and resid {resid}')
 
         # set coordinates to current ligand pose
-        struc.set('coords', pose_coords[..., pose], 'resname MOL')
+        struc.set('coords', pose_coords[..., poses[0]], 'segid L')
         energies = ffev.calculateEnergies(struc.coords)
         nrg = energies['vdw'], energies['elec']
         return nrg
@@ -107,7 +106,7 @@ class FFScorer:
         ncpus: int
             number of CPUs to use for scoring [default: 1]
         """
-        from pocketoptimizer.utility.utils import load_ff_parameters, write_energies
+        from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
 
         structure_path = os.path.join(self.project_path, 'scaffold', self.forcefield, 'protein_params', 'native_complex')
 
@@ -125,26 +124,26 @@ class FFScorer:
 
         selection = selection[0:-4] + ')'
         struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
-        ffev = FFEvaluate(struc, prm, betweensets=(selection, 'resname MOL'))
+        ffev = FFEvaluate(struc, prm, betweensets=(selection, 'segid L'))
         self_nrgs = np.zeros((nposes, 2))
 
         with mp.Pool(processes=ncpus) as pool:
-            with tqdm(total=1, desc='Ligand/Scaffold') as pbar:
+            with tqdm(total=nposes, desc='Ligand/Scaffold') as pbar:
                 for index, energy in enumerate(pool.imap(
                         partial(
                             self.calculate_ff,
                             struc=struc.copy(),
                             ffev=ffev,
-                            pair=False,
                             pose_coords=pose_coords
-                        ), np.arange(nposes))):
+                        ), [(pose,) for pose in range(nposes)],
+                        chunksize=calculate_chunks(nposes=nposes, ncpus=ncpus))):
                     self_nrgs[index] = energy
-                pbar.update()
+                    pbar.update()
 
         # Save data as csv
         write_energies(outpath=outfile,
                        energies=self_nrgs,
-                       energy_terms=['vdw', 'es'],
+                       energy_terms=['VdW', 'ES'],
                        name_a='ligand_pose',
                        nconfs_a=nposes)
 
@@ -163,7 +162,7 @@ class FFScorer:
         ncpus: int
             Number of Cpu's to use for scoring [default: 1]
         """
-        from pocketoptimizer.utility.utils import load_ff_parameters, write_energies
+        from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
 
         structure_path_prepend = os.path.join(self.project_path, 'scaffold', self.forcefield, 'protein_params')
         output_file_prepend = os.path.join(self.project_path, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'ligand_sidechain_{self.forcefield}')
@@ -195,28 +194,27 @@ class FFScorer:
 
                 struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
                 ffev = FFEvaluate(struc, prm,
-                                  betweensets=(f'chain {chain} and resid {resid} and sidechain', 'resname MOL'))
+                                  betweensets=(f'chain {chain} and resid {resid} and sidechain', 'segid L'))
+
+                batch = list(itertools.product(*[np.arange(nposes), np.arange(nrots)]))
                 # Create array (nposes * nrots * 2 (vdw and es))
                 pair_nrgs = np.zeros((nposes, nrots * 2))
 
-                logger.info(f'Loop over Rotamers of Residue: {chain}_{resid}_{resname}.')
-                with tqdm(total=nrots, desc=f'Ligand/{chain}_{resid}_{resname}') as pbar:
-                    for rotamer in np.arange(nrots):
-                        with mp.Pool(processes=ncpus) as pool:
-                            for index, energy in enumerate(pool.imap(
-                                    partial(
-                                        self.calculate_ff,
-                                        struc=struc.copy(),
-                                        ffev=ffev,
-                                        pair=True,
-                                        pose_coords=pose_coords,
-                                        rot_coords=rotamer_mol.coords,
-                                        rotamer=rotamer,
-                                        resid=resid,
-                                        chain=chain
-                                    ), np.arange(nposes))):
-                                pair_nrgs[index, rotamer*2:rotamer*2 + 2] = energy
-                        pbar.update()
+                with tqdm(total=len(batch), desc=f'Ligand/{chain}_{resid}_{resname}') as pbar:
+                    with mp.Pool(processes=ncpus) as pool:
+                        for index, energy in enumerate(pool.imap(
+                                partial(
+                                    self.calculate_ff,
+                                    struc=struc.copy(),
+                                    ffev=ffev,
+                                    pose_coords=pose_coords,
+                                    rot_coords=rotamer_mol.coords,
+                                    chain=chain,
+                                    resid=resid
+                                ), batch,
+                                chunksize=calculate_chunks(nposes=nposes, ncpus=ncpus))):
+                            pair_nrgs[batch[index][0], batch[index][1]*2:batch[index][1]*2 + 2] = energy
+                            pbar.update()
 
                 # Save data as csv
                 write_energies(outpath=output_file,
@@ -227,7 +225,7 @@ class FFScorer:
                                name_b=resname,
                                nconfs_b=nrots)
 
-    def run_ff_scorer(self, mutations: List[Dict[str, Union[str, List[str]]]], ncpus: int = mp.cpu_count()) -> None or NoReturn:
+    def run_ff_scorer(self, mutations: List[Dict[str, Union[str, List[str]]]], ncpus: int = 1) -> NoReturn:
         """
         Run Ligand ff scoring
 

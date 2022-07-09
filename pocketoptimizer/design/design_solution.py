@@ -15,8 +15,8 @@ class DesignSolution:
     """
 
     def __init__(self, work_dir: str, mutations: List[Dict[str, Union[str, List[str]]]],
-                 forcefield: str, scaffold: str, ligand: str, ligand_poses: str, rotamer_path: str, scorer: str,
-                 solution_file: str, index_file: str, energy_file: str):
+                 forcefield: str, scaffold: str, rotamer_path: str, ligand: str, ligand_poses: str, peptide: bool,
+                 scorer: str, solution_file: str, index_file: str, energy_file: str):
         """
         Constructor
 
@@ -30,12 +30,14 @@ class DesignSolution:
             Forcefield used for energy computations
         scaffold: str
             Path to minimized scaffold structure
+        rotamer_path: str
+            Path to sampeld side chain rotamers
         ligand: str
             Path to protonated ligand
         ligand_poses: str
             Path to ligand poses
-        rotamer_path: str
-            Path to sampeld side chain rotamers
+        peptide: bool
+            Whether the ligand is a peptide
         scorer: str
             Scoring method used to score ligand/protein interactions
         solution_file: str
@@ -52,9 +54,10 @@ class DesignSolution:
         self.mutations = mutations
         self.forcefield = forcefield
         self.scaffold = scaffold
+        self.rotamer_path = rotamer_path
         self.ligand = ligand
         self.ligand_poses = ligand_poses
-        self.rotamer_path = rotamer_path
+        self.peptide = peptide
         self.scorer = scorer
 
         self._raw_conf_indices = []
@@ -308,7 +311,8 @@ class DesignSolution:
         ligand_poses = Molecule(self.ligand_poses)
         ligand_poses.read(f'{os.path.splitext(self.ligand_poses)[0]}.xtc')
         ligand_poses.set('segid', 'L')
-        ligand_poses.set('resname', 'MOL')
+        if not self.peptide:
+            ligand_poses.set('resname', 'MOL')
         # Read in minimized protein structure
         scaffold = Molecule(self.scaffold)
 
@@ -318,7 +322,8 @@ class DesignSolution:
             ligand_idx = solution['ligand'][1]
             lig_pose = ligand.copy()
             lig_pose.set('segid', 'L')
-            lig_pose.set('resname', 'MOL')
+            if not self.peptide:
+                lig_pose.set('resname', 'MOL')
             # Set coords to coords of ligand pose of solution
             lig_pose.set('coords', ligand_poses.coords[:, :, ligand_idx])
             for pose in self.get_positions()[:-1]:
@@ -338,7 +343,10 @@ class DesignSolution:
                 design_structure.remove(f'chain {chain_id} and resid {res_id}', _logger=False)
                 design_structure.insert(residue_mol, insert_atom_idx)
             # Write ligand pose and scaffold structure to output directory
-            lig_pose.write(os.path.join(design_path, str(num), 'ligand.mol2'))
+            if not self.peptide:
+                lig_pose.write(os.path.join(design_path, str(num), 'ligand.mol2'))
+            else:
+                lig_pose.write(os.path.join(design_path, str(num), 'ligand.pdb'))
             design_structure.write(os.path.join(design_path, str(num), 'receptor.pdb'))
 
     def get_residue_for_positions(self, solution_index: int, position: str) -> str:
