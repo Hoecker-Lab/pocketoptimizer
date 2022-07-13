@@ -90,7 +90,7 @@ class PeptideSampler(FFRotamerSampler):
 
     def calculate_vdw(self, conf_id: int, structure: Molecule, ffev: FFEvaluate) -> np.float:
         """
-        Calculates the vdW energy of a conformer
+        Calculates the energy of a peptide conformation
 
         Parameters
         ----------
@@ -103,21 +103,21 @@ class PeptideSampler(FFRotamerSampler):
 
         Returns
         -------
-        Returns vdW energy
+        Returns summed energie
         """
         # Set coordinates to coordinates of conformer
         structure.set('coords', structure.coords[:, :, conf_id])
         energies = ffev.calculateEnergies(structure.coords[:, :, conf_id])
         structure.write(os.path.join(self.tmp, f'ligand_conf_{conf_id}.pdb'))
 
-        return energies['vdw']
+        return energies['total']
 
-    def conformer_sampling(self, vdw_filter_thresh: float = 100.0, dunbrack_filter_thresh: float = -1,
+    def conformer_sampling(self, nrg_thresh: float = 100.0, dunbrack_filter_thresh: float = -1,
                            expand: List[str] = [], ncpus: int = 1, _keep_tmp: bool = False) -> NoReturn:
         """
         Parameters
         ----------
-        vdw_filter_thresh: float
+        nrg_thresh: float
             Filtering threshold to avoid clashes. [default: 100 kcal/mol]
         dunbrack_filter_thresh: float
             Filter threshold, rotamers having probability of occurence lower than filter threshold will
@@ -267,15 +267,10 @@ class PeptideSampler(FFRotamerSampler):
                         chunksize=calculate_chunks(nposes=nconfs, ncpus=ncpus))):
                     energies[pose_id] = energy
                     pbar.update()
-        val_ids = [val_id[0] for val_id in np.argwhere(energies <= vdw_filter_thresh)]
-
-        if not val_ids:
-            logger.error(f'No conformers within energy threshold of {vdw_filter_thresh} kcal/mol found. Increase energy.')
-            raise RuntimeError(f'No conformers within energy threshold of {vdw_filter_thresh} kcal/mol found. Increase energy.')
-        else:
-            logger.info(f'Generated {len(val_ids)} conformers.')
+        val_ids = [val_id[0] for val_id in np.argwhere(energies < min(energies) + nrg_thresh)]
 
         self.merge_conformers(conf_ids=val_ids, outfile=outfile)
+        logger.info(f'Generated {len(val_ids)} conformers.')
 
         if not _keep_tmp:
             if os.path.isdir(self.tmp):

@@ -189,16 +189,17 @@ class FFRotamerSampler:
                 else:
                     rotamer_chi_angles[i].append((chi_angle,))
 
-        chi_angles = []
+        rotamers = []
 
-        for rotamer in rotamer_chi_angles:
-            for chi_1 in rotamer[0]:
-                for chi_2 in rotamer[1]:
-                    for chi_3 in rotamer[2]:
-                        for chi_4 in rotamer[3]:
-                            chi_angles.append((chi_1, chi_2, chi_3, chi_4))
-
-        return list(set(chi_angles))
+        for possible_rotamer in rotamer_chi_angles:
+            for chi_1 in possible_rotamer[0]:
+                for chi_2 in possible_rotamer[1]:
+                    for chi_3 in possible_rotamer[2]:
+                        for chi_4 in possible_rotamer[3]:
+                            rotamer = (chi_1, chi_2, chi_3, chi_4)
+                            if not rotamer in rotamers:
+                                rotamers.append(rotamer)
+        return rotamers
 
     def calculate_vdw(self, rot_id: int, structure: Molecule, ffev: FFEvaluate,
                       res_coords: np.ndarray, resname: str, resid: str, chain: str) -> np.float:
@@ -426,13 +427,9 @@ class FFRotamerSampler:
                                 chunksize=calculate_chunks(nposes=nrots, ncpus=ncpus))):
                             energies[i] = energy
                             pbar.update()
-                val_ids = [val_id[0] for val_id in np.argwhere(energies <= vdw_filter_thresh)]
 
-                if not val_ids:
-                    logger.warning(f'No rotamers within energy threshold of {vdw_filter_thresh} kcal/mol for residue: {resname} at position: {chain}_{resid}. Include rotamer with lowest energy.')
-                    val_ids.append(np.where(np.array(energies) == np.min(energies))[0][0])
-                else:
-                    logger.info(f'Writing {len(val_ids)}/{nrots} rotamers within energy threshold of {str(vdw_filter_thresh)} kcal/mol for {resname} at position: {chain}_{resid}.')
+                val_ids = [val_id[0] for val_id in np.argwhere(energies < min(energies) + vdw_filter_thresh)]
+                logger.info(f'Writing {len(val_ids)}/{nrots} rotamers within energy threshold of {str(vdw_filter_thresh)} kcal/mol for {resname} at position: {chain}_{resid}.')
 
                 os.makedirs(os.path.split(outfile)[0], exist_ok=True)
                 rotamer_energy_file = os.path.join(os.path.split(outfile)[0], f'{resname}.csv')

@@ -21,8 +21,6 @@ If you want to use PocketOptimizer you can clone the GitHub repository and set u
 
     cd /YOUR_PATH/PocketOptimizer2
 
-    git checkout github
-
 The repository contains an environment.yml file that holds information about all
 dependencies and versions required for PocketOptimizer. By typing:
 
@@ -45,7 +43,7 @@ Running PocketOptimizer
 Since PocketOptimizer's rework, the framework is now accessed solely through Python 3.9.
 This means that it can be incorporated in your regular Python scripts or in an interactive fashion through Jupyter Notebooks.
 The former is useful for automatized pipelines while the latter is helpful for going through every step separately.
-Jupyter is already part of the ``pocketoptimizer`` module and does not need be installed.
+Jupyter is already part of the ``pocketoptimizer`` environment and does not need be installed.
 Jupyter can be opened in two different ways:
 
 * `Jupyter-Lab <https://jupyterlab.readthedocs.io/en/stable/>`_: the newest framework.
@@ -57,22 +55,15 @@ Jupyter can be opened in two different ways:
 
 Both can be used in the same way to write Python scripts.
 By typing either of the commands in the commandline a local server is opened in your browser.
-Additionally, an IP address and a port need to be defined while starting Jupyter:
 
-``jupyter-lab --ip 0.0.0.0 --port 8080``
+``jupyter-lab``
 
 or
 
-``jupyter-notebook --ip 0.0.0.0 --port 8080``
+``jupyter-notebook``
 
-The port can be any number from 8080-8089.
 
-To make interactive widgets available in the Jupyter-Lab environment, you have to manually type the following two commands in the command line
-
-``jupyter nbextension enable --py --sys-prefix widgetsnbextension``
-``jupyter labextension install @jupyter-widgets/jupyterlab-manager``
-
-Before being able to use PocketOptimizer in Jupyter you need to install the kernel of the conda environment:
+Before being able to use PocketOptimizer in Jupyter you need to install the kernel from inside the conda environment:
 
 .. code-block:: bash
 
@@ -200,6 +191,7 @@ the following lines:
     # Set the Path to your working directory which contains the scaffold and ligand folder
     # Set a pH value or use the default value of 7.2
     # Select a force field (either: charmm36 or amber_ff14SB)
+    # Select the number of CPUs
     design = po.DesignPipeline(work_dir='YOUR_PROJECT_PATH', ph=pH_VALUE, forcefield='YOUR_FORCEFIELD', ncpus=8)
 
 While you are initializing you can define a pH, used for protonating the side chains of the protein and also the ligand molecule.

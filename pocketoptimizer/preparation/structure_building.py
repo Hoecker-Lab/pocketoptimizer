@@ -120,11 +120,11 @@ class SystemBuilder:
 
             # Filter ligands, ions, waters out
             filter_str = f'protein'
-            if discard_mols is not None:
+            if discard_mols:
                 for mol in discard_mols:
                         filter_str += f' and not (chain {mol["chain"]} and resid {mol["resid"]})'
 
-            if keep_chains is not None:
+            if keep_chains:
                 selection_str = '('
                 for i, chain in enumerate(keep_chains):
                     if i == len(keep_chains) - 1:
@@ -263,7 +263,7 @@ class SystemBuilder:
     def build_peptide(self) -> NoReturn:
         """Builds a peptide
 
-        This procedure buils an apo protein.
+        This procedure builds the peptide and all mutations specfied
         """
         # Path to protonated scaffold
         peptide = Molecule(self.structure)
@@ -312,8 +312,6 @@ class SystemBuilder:
             What type of sampling pockets to build for rotamer and ligand pose sampling procedures
             In theory every pocket is possible, but only glycine and alanine are meanigful [default: GLY]
         """
-        # Path to prepared ligand
-        ligand = os.path.join(ligand)
         # Merge scaffold and ligand into one molecule
         prot = Molecule(self.structure)
 

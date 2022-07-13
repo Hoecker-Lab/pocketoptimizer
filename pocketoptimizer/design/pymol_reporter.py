@@ -81,10 +81,11 @@ class PymolReporter:
             'load ' + os.path.abspath(scaffold_pdb) + ', WT_scaffold',
             'hide lines',
             'cartoon loop',
-            'color gray70, WT_scaffold and elem C',
+            'color gray80, WT_scaffold and elem C',
             'color gray90, design and elem C',
             'set stick_radius, 0.15',
             'show stick, ligand',
+            'hide cartoon ligand',
             'select old_pocket, (' + pocket + ') and WT_scaffold',
             'select new_pocket, (' + pocket + ') and design',
             'select mutable, (' + mutable + ') and design',
@@ -97,7 +98,7 @@ class PymolReporter:
             'spectrum b, red_blue, new_pocket',
             'color bluewhite, ligand and elem C',
             'color splitpea, WT_scaffold and elem C',
-            'color gray70, WT_scaffold and not old_pocket and elem C',
+            'color gray80, WT_scaffold and not old_pocket and elem C',
             'select don, (elem N or elem O and (neighbor hydro))',
             'select acc, (elem O or (elem N and not (neighbor hydro)))']
         if waters:
@@ -111,7 +112,7 @@ class PymolReporter:
             commands.append(s_delete[:-4])
             commands += [
                 'show sphere, wt_waters',
-                'color gray70, wt_waters',
+                'color gray80, wt_waters',
                 'select waters, resn HOH and design',
                 'show sphere, waters',
                 'color red, waters',
@@ -218,7 +219,9 @@ class PymolReporter:
                 if mutable != '':
                     mutable += ' or '
                 mutable += '(chain ' + chain + ' and resi ' + index + ')'
-        commands = ['load ' + os.path.abspath(scaffold_pdb) + ', WT_scaffold', 'load %s, WT_ligand' % wt_ligand]
+        commands = ['load ' + os.path.abspath(scaffold_pdb) + ', WT_scaffold',
+                    'load %s, WT_ligand' % wt_ligand,
+                    'hide cartoon, WT_ligand']
 
         for sol_i in range(self._solutions.get_solution_number()):
             dir_i = os.path.join(outdir, str(sol_i))
@@ -238,7 +241,7 @@ class PymolReporter:
             commands.append(s_delete[:-4])
             commands += [
                 'show sphere, wt_waters',
-                'color gray70, wt_waters',
+                'color gray80, wt_waters',
                 'select waters, resn HOH and design',
                 'show sphere, waters',
                 'color red, waters',
@@ -250,6 +253,7 @@ class PymolReporter:
             'cartoon loop',
             'set stick_radius, 0.15',
             'show stick, ligand_poses',
+            'hide cartoon, ligand_poses',
             'select old_pocket, (' + pocket + ') and WT_scaffold',
             'select new_pocket, (' + pocket + ') and designs',
             'select mutable, (' + mutable + ') and designs',
@@ -259,14 +263,14 @@ class PymolReporter:
             'show lines, WT_scaffold and not old_pocket',
             'hide lines, WT_scaffold and name c+o+n',
             'color gray90, designs and elem C',
-            'color gray70, WT_scaffold and elem C',
+            'color gray80, WT_scaffold and elem C',
             'color bluewhite, new_pocket and elem C',
             'set_bond stick_radius, 0.25, mutable',
             'set label_size, 20']
         commands += ['select don, (elem N or elem O and (neighbor hydro))',
                      'select acc, (elem O or (elem N and not (neighbor hydro)))',
                      'color bluewhite, ligand_poses and elem C',
-                     'color gray70, WT_ligand and elem C'
+                     'color gray80, WT_ligand and elem C'
                      ]
         if waters:
             commands += [
@@ -289,7 +293,7 @@ class PymolReporter:
         if waters:
             commands += [
                 'show sphere, wt_waters',
-                'color gray70, wt_waters',
+                'color gray80, wt_waters',
                 'select waters, resn HOH and design',
                 'show sphere, waters',
                 'color red, waters',

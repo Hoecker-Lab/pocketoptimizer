@@ -301,7 +301,7 @@ class DesignPipeline:
                                                mutations=mutations)
         self.mutations = mutation_processor.process_mutations()
 
-    def parameterize_ligand(self, input_ligand: str, lig_mutations: List[Dict[str, str]] = None) -> NoReturn:
+    def parameterize_ligand(self, input_ligand: str) -> NoReturn:
         """
         Interface for Ligand parameterization.
         Adds hydrogen atoms to the input molecule, produces GAFF2 or CGenFF_2b6 parameters.
@@ -310,34 +310,17 @@ class DesignPipeline:
         ----------
         input_ligand: str
             Path to a ligand file
-        mutations: list
-            allows to set peptide mutations in the following way [{'resid': '6', 'mutation': 'ALA'}]
         """
         from pocketoptimizer.preparation.structure_building import SystemBuilder
 
         self._update_settings()
-
-        if lig_mutations:
-            if not type(lig_mutations) == list:
-                logger.error('Define mutations in a list.')
-                raise TypeError('Define mutations in a list.')
-            else:
-                ligand_mutations = []
-                for mutation in lig_mutations:
-                    ligand_mutations.append({'chain': 'L',
-                                             'resid': mutation['resid'],
-                                             'mutation': mutation['mutation']})
-        else:
-            ligand_mutations = None
 
         if not os.path.isfile(self.ligand_protonated):
 
             system = SystemBuilder(work_dir=self.work_dir,
                                    structure=os.path.join(self.work_dir, input_ligand),
                                    forcefield=self.forcefield,
-                                   mutations=ligand_mutations,
                                    ligand_params=self.built_ligand_params,
-                                   peptide=self.peptide,
                                    tleap=self.settings.TLEAP_BIN,
                                    psfgen=self.settings.PSFGEN_BIN,
                                    obabel=self.settings.OBABEL_BIN,
@@ -345,16 +328,8 @@ class DesignPipeline:
                                    parmchk2=self.settings.PARMCHK2_BIN,
                                    match=self.settings.MATCH_PERL)
 
-            if not self.peptide:
-                system.parameterize_ligand(ph=self.ph)
-            else:
-                system.prepare_peptide(prepared_peptide=self.ligand_protonated, pH=self.ph)
-                # Build force field parameters for peptide
-                system.build_peptide()
+            system.parameterize_ligand(ph=self.ph)
 
-            if not os.path.isfile(self.ligand_protonated):
-                logger.error(f"Ligand structure file: {self.ligand_protonated} not found.")
-                raise FileNotFoundError(f"Ligand structure file: {self.ligand_protonated} not found.")
         else:
             logger.info('Ligand is already parametrized.')
 
@@ -378,11 +353,10 @@ class DesignPipeline:
         ecutoff: float
             Energy cutoff (default 50.0 kcal/mol). Only used together with the 'confab' method. [default: 50 kcal/mol]
         """
-        self._update_settings()
-
-        os.makedirs(os.path.join(self.work_dir, 'ligand', self.forcefield, 'conformers'), exist_ok=True)
-
         from pocketoptimizer.sampling import conformer_generator_obabel
+
+        self._update_settings()
+        os.makedirs(os.path.join(self.work_dir, 'ligand', self.forcefield, 'conformers'), exist_ok=True)
 
         if method == 'genetic' or method == 'confab':
             conformer_generator_obabel.conformer_generator(
@@ -393,7 +367,7 @@ class DesignPipeline:
             raise ValueError('Conformer generation method not defined! Try genetic or confab.')
 
     def prepare_peptide_conformers(self, positions: List[str], library: str = 'dunbrack',
-                                   vdw_filter_thresh: float = 100.0, expand: List[str] = ['chi1', 'chi2'],
+                                   nrg_thresh: float = 100.0, expand: List[str] = ['chi1', 'chi2'],
                                    dunbrack_filter_thresh: float = 0.01):
         """
         positions: list
@@ -401,8 +375,8 @@ class DesignPipeline:
         library: str
             Library to use for selecting rotamers, either setting coordinates from pdb after superimposing (cmlib)
             or setting dihedral angles from dunbrack [default: 'dunbrack']
-        vdw_filter_thresh: float
-            Threshold value used to filter clashing rotamers [default: 100.0 kcal/mol]
+        nrg_thresh: float
+            Threshold value used to filter peptide conformations [default: 100.0 kcal/mol]
         expand: list
             List of which chi angles to expand, [default: ['chi1', 'chi2']]
         dunbrack_filter_thresh: float
@@ -411,6 +385,10 @@ class DesignPipeline:
         from pocketoptimizer.sampling.peptide_sampler import PeptideSampler
 
         self._update_settings()
+
+        if nrg_thresh < 0:
+            logger.error('Threshold needs to be positive.')
+            return
 
         _positions = []
         for resid in set(positions):
@@ -425,14 +403,15 @@ class DesignPipeline:
                                          library=library,
                                          )
 
-        peptide_sampler.conformer_sampling(vdw_filter_thresh=vdw_filter_thresh,
+        peptide_sampler.conformer_sampling(nrg_thresh=nrg_thresh,
                                            dunbrack_filter_thresh=dunbrack_filter_thresh,
                                            expand=expand,
                                            ncpus=self.ncpus)
         os.chdir(self.work_dir)
 
-    def prepare_protein(self, protein_structure: str, keep_chains: List = None,
-                            backbone_restraint: bool = True, cuda: bool = False, discard_mols: List[Dict[str, str]] = None) -> NoReturn or None:
+    def prepare_protein(self, protein_structure: str, keep_chains: List = [], backbone_restraint: bool = True,
+                        discard_mols: List[Dict[str, str]] = [], peptide_structure: str = None,
+                        peptide_mutations: List[Dict[str, str]] = [], cuda: bool = False) -> NoReturn or None:
             """
             Protonates and cleans the protein structure followed by a subsequent minimization step.
 
@@ -452,11 +431,15 @@ class DesignPipeline:
                 Protein chain which will be extracted for the design (['A', 'B'])
             backbone_restraint: bool
                 Restraints the backbone during minimization. [default: True]
-            cuda: bool
-                If the minimization should be performed on a GPU. [default: False]
             discard_mols: list
                 List of dictionaries containing chain and resid of the molecules to discard. In the case of amino acid ligands,
                 these have to be manually discarded with this option. [default: None]
+            peptide: str
+                Path to peptide that should be prepared
+            peptide_mutations: list
+                allows to set peptide mutations in the following way [{'resid': '6', 'mutation': 'ALA'}] [default: None]
+            cuda: bool
+                If the minimization should be performed on a GPU. [default: False]
             """
             from pocketoptimizer.preparation import minimize_structure
             from pocketoptimizer.preparation.structure_building import SystemBuilder
@@ -465,61 +448,83 @@ class DesignPipeline:
 
             logger.info('Start Protein Preparation.')
 
-            if keep_chains and not type(keep_chains) == list:
+            if self.peptide:
+                if not peptide_structure:
+                    logger.error('No input peptide structure defined.')
+                    raise RuntimeError('No input peptide structure defined.')
+
+                else:
+                    _peptide_mutations = []
+                    for mutation in peptide_mutations:
+                        _peptide_mutations.append({'chain': 'L',
+                                                   'resid': mutation['resid'],
+                                                   'mutation': mutation['mutation']})
+
+                    system = SystemBuilder(work_dir=self.work_dir,
+                                           structure=os.path.join(self.work_dir, peptide_structure),
+                                           forcefield=self.forcefield,
+                                           ligand_params=self.built_ligand_params,
+                                           mutations=_peptide_mutations,
+                                           peptide=self.peptide,
+                                           tleap=self.settings.TLEAP_BIN,
+                                           psfgen=self.settings.PSFGEN_BIN)
+                    system.prepare_peptide(prepared_peptide=self.ligand_protonated, pH=self.ph)
+                    # Build force field parameters for peptide
+                    system.build_peptide()
+
+            if not type(keep_chains) == list:
                 logger.error('Define chains in a list.')
                 raise TypeError('Define chains in a list.')
 
-            discard_mols_no_duplicates = []
-            if discard_mols:
-                for cofactor in discard_mols:
-                    try:
-                        discard_mols_no_duplicates.append({'chain': cofactor['chain'], 'resid': cofactor['resid']})
-                    except KeyError or TypeError:
-                        logger.error('Molecules to discard need to be defined by their chain and residue identifiers.')
-                        raise TypeError('Molecules to discard need to be defined by their chain and residue identifiers.')
+            if not type(discard_mols) == list:
+                logger.error('Define molecules in a list of dictionaries.')
+                raise TypeError('Define molecules in a list of dictionaries.')
+
+            if not type(peptide_mutations) == list:
+                logger.error('Define mutations in a list of dictionaries.')
+                raise TypeError('Define mutations in a list of dictionaries.')
 
             system = SystemBuilder(work_dir=self.work_dir,
-                                  structure=os.path.join(self.work_dir, protein_structure),
-                                  forcefield=self.forcefield,
-                                  peptide=self.peptide,
-                                  ligand_params=self.built_ligand_params,
-                                  tleap=self.settings.TLEAP_BIN,
-                                  psfgen=self.settings.PSFGEN_BIN)
+                                   structure=os.path.join(self.work_dir, protein_structure),
+                                   forcefield=self.forcefield,
+                                   peptide=self.peptide,
+                                   ligand_params=self.built_ligand_params,
+                                   tleap=self.settings.TLEAP_BIN,
+                                   psfgen=self.settings.PSFGEN_BIN)
 
             os.makedirs(os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_preparation'), exist_ok=True)
             system.prepare_protein(prepared_protein=self.prepared_protein,
                                    keep_chains=keep_chains,
                                    pH=self.ph,
-                                   discard_mols=discard_mols_no_duplicates)
+                                   discard_mols=discard_mols)
 
             # Check if there is a built scaffold
             if not os.path.isfile(self.built_scaffold):
                 # Minimize the structure with ligand in pocket
-                    logger.info('Building complex before minimization.')
-                    # Build the complex before minimization
+                logger.info('Building complex before minimization.')
+                # Build the complex before minimization
+                system.build_complex(ligand=self.ligand_protonated)
+                input_path = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', 'native_complex')
 
-                    system.build_complex(ligand=self.ligand_protonated)
-                    input_path = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', 'native_complex')
-
-                    if not self.peptide:
-                        minimize_structure.minimize_structure(
-                            structure_path=input_path,
-                            forcefield=self.forcefield,
-                            output_pdb=self.built_scaffold,
-                            cuda=cuda,
-                            restraint_bb=backbone_restraint,
-                            temperature=self.temperature)
-                    else:
-                        minimize_structure.minimize_structure(
-                            structure_path=input_path,
-                            forcefield=self.forcefield,
-                            output_pdb=self.built_scaffold,
-                            cuda=cuda,
-                            restraint_bb=backbone_restraint,
-                            minimize_ligand=True,
-                            output_ligand=self.ligand_protonated,
-                            temperature=self.temperature)
-                    logger.info('Your protein was successfully minimized and can be used for design now.')
+                if not self.peptide:
+                    minimize_structure.minimize_structure(
+                        structure_path=input_path,
+                        forcefield=self.forcefield,
+                        output_pdb=self.built_scaffold,
+                        cuda=cuda,
+                        restraint_bb=backbone_restraint,
+                        temperature=self.temperature)
+                else:
+                    minimize_structure.minimize_structure(
+                        structure_path=input_path,
+                        forcefield=self.forcefield,
+                        output_pdb=self.built_scaffold,
+                        cuda=cuda,
+                        restraint_bb=backbone_restraint,
+                        minimize_ligand=True,
+                        output_ligand=self.ligand_protonated,
+                        temperature=self.temperature)
+                logger.info('Your protein was successfully minimized and can be used for design now.')
 
             else:
                 logger.info('Your scaffold is already minimized.')
@@ -603,6 +608,10 @@ class DesignPipeline:
         # set rotamer path for energy calculations
         self._set_rot_lib(library)
 
+        if vdw_filter_thresh < 0:
+            logger.error('Threshold needs to be positive.')
+            return
+
         rotamer_sampler = sidechain_rotamers_ffev.FFRotamerSampler(
             work_dir=self.work_dir,
             mutations=copy.deepcopy(self.mutations),
@@ -647,6 +656,10 @@ class DesignPipeline:
             logger.error('Define grid, if grid method should be used.')
             raise ValueError('Define grid, if grid method should be used.')
 
+        if vdw_filter_thresh < 0:
+            logger.error('Threshold needs to be positive.')
+            return
+
         sampling_scaffold_ligand = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params',
                                                 'ligand_sampling_pocket', 'structure.pdb')
 
@@ -657,6 +670,7 @@ class DesignPipeline:
                                                    ligand=self.ligand_conformers,
                                                    forcefield=self.forcefield,
                                                    max_poses=max_poses,
+                                                   sampling_method=method,
                                                    peptide=self.peptide)
 
                 sampler.create_ligand_ensemble(grid=grid, vdw_filter_thresh=vdw_filter_thresh, ncpus=self.ncpus)
@@ -936,7 +950,7 @@ class DesignPipeline:
     def clean(self, scaffold: bool = False, ligand: bool = False) -> None or NoReturn:
         """
         Remove all prepared scaffold and ligand files to start an entirely new design run.
-        Delete settings.py, pokcetoptimizer.log files and reset mutations, new DesignPipeline object needs to be initialized.
+        Delete settings.py, pocketoptimizer.log files and reset mutations, new DesignPipeline object needs to be initialized.
 
         Parameters
         ----------
@@ -1060,11 +1074,12 @@ if __name__ == '__main__':
     parser.add_argument('--lig_trans', '--lig_trans', type=float, nargs=1, default=[1], help='Maximum ligand translation', required=False)
     parser.add_argument('--lig_trans_steps', '--lig_trans_steps', type=float, nargs=1, default=[0.5], help='Ligand translation steps', required=False)
     parser.add_argument('--max_poses', '--max_poses', type=int, nargs=1, default=[10000], help='Maximum number of ligand poses to sample', required=False)
+    parser.add_argument('--sampling_pocket', type=str, nargs=1, default=['GLY'], help='Sampling pocket for rotamer and ligand pose sampling', required=False)
     parser.add_argument('--scoring', type=str, nargs=1, default=['vina'], help='Scoring function, options are: vina, vinardo, dkoes_scoring, ad4_scoring, force_field', required=False)
     parser.add_argument('--lig_scaling', type=int, nargs=1, default=[1], help='Ligand scaling factor', required=False)
     parser.add_argument('--num_solutions', type=int, nargs=1, default=[10], help='Number of design solutions to calculate', required=False)
     parser.add_argument('--ncpus', type=int, nargs=1, default=[1], help='Number of CPUs for multiprocesing', required=False)
-    parser.add_argument('--cuda', type=int, nargs=1, default=[1], help='Enabling cuda for GPU based minimization', required=False)
+    parser.add_argument('--cuda', type=int, nargs=1, default=[0], help='Enabling cuda for GPU based minimization', required=False)
 
     # cuda, conf_method, vdw
 
@@ -1102,7 +1117,7 @@ if __name__ == '__main__':
         for mutation in args.peptide_mutations:
             try:
                 resid, resname = mutation.split(':')
-                peptide_mutations.append({'resid': resid, 'mutations': resname})
+                peptide_mutations.append({'resid': resid, 'mutation': resname})
             except ValueError:
                 logger.error('Define mutations in the following format RESID:RESNAME')
                 raise argparse.ArgumentTypeError('Define mutations in the following format RESID:RESNAME')
@@ -1112,15 +1127,16 @@ if __name__ == '__main__':
         design = pocketoptimizer.DesignPipeline(work_dir=working_dir, forcefield=args.forcefield[0], ph=args.ph[0], ncpus=args.ncpus[0], peptide=False)
         design.parameterize_ligand(input_ligand=args.ligand[0])
         design.prepare_lig_conformers(nconfs=args.nconfs[0])
+        design.prepare_protein(protein_structure=args.receptor[0], keep_chains=args.keep_chains, backbone_restraint=True,
+                               cuda=bool(args.cuda[0]), discard_mols=discard_mols)
     else:
         design = pocketoptimizer.DesignPipeline(work_dir=working_dir, forcefield=args.forcefield[0], ph=args.ph[0], ncpus=args.ncpus[0], peptide=True)
-        design.parameterize_ligand(input_ligand=args.ligand[0], lig_mutations=peptide_mutations)
+        design.prepare_protein(protein_structure=args.receptor[0], keep_chains=args.keep_chains, backbone_restraint=True,
+                               discard_mols=discard_mols, peptide_structure=args.ligand[0], peptide_mutations=peptide_mutations, cuda=bool(args.cuda[0]))
         design.prepare_peptide_conformers(positions=[resid for resid in args.flex_peptide_res], vdw_filter_thresh=args.vdw_thresh[0])
 
-    design.prepare_protein(protein_structure=args.receptor[0], keep_chains=args.keep_chains, backbone_restraint=True,
-                           cuda=bool(args.cuda[0]), discard_mols=discard_mols)
     design.set_mutations(mutations)
-    design.prepare_mutants(sampling_pocket='GLY')
+    design.prepare_mutants(sampling_pocket=args.sampling_pocket[0])
     design.sample_sidechain_rotamers(library=args.rot_lib[0], vdw_filter_thresh=args.vdw_thresh[0])
     design.sample_lig_poses(method='grid', grid={'trans': [args.lig_trans[0], args.lig_trans_steps[0]], 'rot': [args.lig_rot[0], args.lig_rot_steps[0]]} ,
                             vdw_filter_thresh=args.vdw_thresh[0], max_poses=args.max_poses[0])

@@ -262,8 +262,7 @@ class PoseSampler:
     def filter_clashes(pose_id: int, pose_coords: np.ndarray, struc: Molecule, ffev: FFEvaluate) -> np.float:
         """Calculation and filtering procedure.
 
-        Calculates the force field components and if the vdW value
-        is above the threshold the pose ID is not saved.
+        Calculates the vdw energy of a ligand pose
 
         Parameters
         ----------
@@ -278,7 +277,7 @@ class PoseSampler:
 
         Returns
         -------
-        Vdw energy for a ligand pose
+        Vdw energy of a ligand pose
         """
         struc.set('coords', pose_coords[:, :, pose_id], 'segid L')
         energies = ffev.calculateEnergies(struc.coords)
@@ -511,7 +510,9 @@ class PoseSampler:
                                     ), np.arange(nposes), chunksize=chunksize)):
                         energies[pose_id] = energy
                         pbar.update()
-        val_ids = [val_id[0] for val_id in np.argwhere(energies <= vdw_filter_thresh)]
+
+        val_ids = [val_id[0] for val_id in np.argwhere(energies < min(energies) + vdw_filter_thresh)]
+        logger.info(f'Calculated poses within threshold: {len(val_ids)}.')
 
         ligand_pose_energy_file = os.path.join(self.work_dir, 'ligand', self.forcefield, 'poses', 'ligand_poses.csv')
         write_energies(outpath=ligand_pose_energy_file,
@@ -520,11 +521,6 @@ class PoseSampler:
                        name_a='ligand_pose',
                        nconfs_a=nposes)
 
-        if not val_ids:
-            logger.error(f'No poses within energy threshold of {vdw_filter_thresh} kcal/mol were found.')
-            raise RuntimeError(f'No poses within energy threshold of {vdw_filter_thresh} kcal/mol were found.')
-
-        logger.info(f'Calculated poses within threshold: {len(val_ids)}.')
         val_ids = np.hstack(val_ids)
         if val_ids.shape[0] > self.max_poses:
             if self.filter == 'diverse':
