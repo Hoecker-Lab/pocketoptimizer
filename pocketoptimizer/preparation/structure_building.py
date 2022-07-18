@@ -532,12 +532,9 @@ class SystemBuilder:
 
                 built_command = [self.tleap, '-f', './tleap.in']
 
-                try:
-                    logger.info('Starting to build.')
-                    os.chdir(outdir)
-                    subprocess.run(built_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                except Exception as e:
-                    logger.error(f'Tleap failed with the following exception: {e}.')
+                logger.info('Starting to build.')
+                os.chdir(outdir)
+                subprocess.run(built_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 logger.info('Finished building.')
 
                 if os.path.exists(os.path.join(outdir, "structure.crd")) and os.path.exists(os.path.join(outdir, 'structure.prmtop')):

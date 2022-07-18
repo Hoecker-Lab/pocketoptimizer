@@ -109,8 +109,16 @@ class PeptideSampler(FFRotamerSampler):
         structure.set('coords', structure.coords[:, :, conf_id])
         energies = ffev.calculateEnergies(structure.coords[:, :, conf_id])
         structure.write(os.path.join(self.tmp, f'ligand_conf_{conf_id}.pdb'))
+        total_nrg = 0
+        for comp, nrg in energies.items():
+            if comp == 'elec':
+                total_nrg += nrg * 0.01
+            elif comp == 'total':
+                continue
+            else:
+                total_nrg += nrg
 
-        return energies['total']
+        return total_nrg
 
     def conformer_sampling(self, nrg_thresh: float = 100.0, dunbrack_filter_thresh: float = -1,
                            expand: List[str] = [], ncpus: int = 1, _keep_tmp: bool = False) -> NoReturn:
@@ -267,7 +275,7 @@ class PeptideSampler(FFRotamerSampler):
                         chunksize=calculate_chunks(nposes=nconfs, ncpus=ncpus))):
                     energies[pose_id] = energy
                     pbar.update()
-        val_ids = [val_id[0] for val_id in np.argwhere(energies < min(energies) + nrg_thresh)]
+        val_ids = [val_id[0] for val_id in np.argwhere(energies <= min(energies) + nrg_thresh)]
 
         self.merge_conformers(conf_ids=val_ids, outfile=outfile)
         logger.info(f'Generated {len(val_ids)} conformers.')

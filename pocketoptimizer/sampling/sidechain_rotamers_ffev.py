@@ -428,7 +428,7 @@ class FFRotamerSampler:
                             energies[i] = energy
                             pbar.update()
 
-                val_ids = [val_id[0] for val_id in np.argwhere(energies < min(energies) + vdw_filter_thresh)]
+                val_ids = [val_id[0] for val_id in np.argwhere(energies <= min(energies) + vdw_filter_thresh)]
                 logger.info(f'Writing {len(val_ids)}/{nrots} rotamers within energy threshold of {str(vdw_filter_thresh)} kcal/mol for {resname} at position: {chain}_{resid}.')
 
                 os.makedirs(os.path.split(outfile)[0], exist_ok=True)

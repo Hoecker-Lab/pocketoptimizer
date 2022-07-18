@@ -1121,19 +1121,18 @@ if __name__ == '__main__':
             except ValueError:
                 logger.error('Define mutations in the following format RESID:RESNAME')
                 raise argparse.ArgumentTypeError('Define mutations in the following format RESID:RESNAME')
+        # Initialize new DesignPipeline in current working directory.
+        design = pocketoptimizer.DesignPipeline(work_dir=working_dir, forcefield=args.forcefield[0], ph=args.ph[0], ncpus=args.ncpus[0], peptide=True)
+        design.prepare_protein(protein_structure=args.receptor[0], keep_chains=args.keep_chains, backbone_restraint=True,
+                               discard_mols=discard_mols, peptide_structure=args.ligand[0], peptide_mutations=peptide_mutations, cuda=bool(args.cuda[0]))
+        design.prepare_peptide_conformers(positions=[resid for resid in args.flex_peptide_res], nrg_thresh=args.vdw_thresh[0])
 
-    # Initialize new DesignPipeline in current working directory.
-    if not args.flex_peptide_res:
+    else:
         design = pocketoptimizer.DesignPipeline(work_dir=working_dir, forcefield=args.forcefield[0], ph=args.ph[0], ncpus=args.ncpus[0], peptide=False)
         design.parameterize_ligand(input_ligand=args.ligand[0])
         design.prepare_lig_conformers(nconfs=args.nconfs[0])
         design.prepare_protein(protein_structure=args.receptor[0], keep_chains=args.keep_chains, backbone_restraint=True,
                                cuda=bool(args.cuda[0]), discard_mols=discard_mols)
-    else:
-        design = pocketoptimizer.DesignPipeline(work_dir=working_dir, forcefield=args.forcefield[0], ph=args.ph[0], ncpus=args.ncpus[0], peptide=True)
-        design.prepare_protein(protein_structure=args.receptor[0], keep_chains=args.keep_chains, backbone_restraint=True,
-                               discard_mols=discard_mols, peptide_structure=args.ligand[0], peptide_mutations=peptide_mutations, cuda=bool(args.cuda[0]))
-        design.prepare_peptide_conformers(positions=[resid for resid in args.flex_peptide_res], vdw_filter_thresh=args.vdw_thresh[0])
 
     design.set_mutations(mutations)
     design.prepare_mutants(sampling_pocket=args.sampling_pocket[0])
