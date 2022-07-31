@@ -11,17 +11,7 @@ import numpy as np
 import pandas as pd
 from moleculekit.molecule import Molecule
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.utilities')
+logger = logging.getLogger(__name__)
 
 
 class MutationProcessor:

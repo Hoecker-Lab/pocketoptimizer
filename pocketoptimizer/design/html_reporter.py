@@ -10,17 +10,7 @@ import matplotlib.pyplot as plt
 import pocketoptimizer.utility.html_tags as t
 from pocketoptimizer.design.design_solution import DesignSolution
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.design.html_reporter')
+logger = logging.getLogger(__name__)
 
 
 class HtmlReporter:

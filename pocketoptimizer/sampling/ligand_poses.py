@@ -12,17 +12,7 @@ from moleculekit.molecule import Molecule
 from moleculekit.util import uniformRandomRotation
 from moleculekit.projections.metricdistance import MetricDistance
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.sampling.ligand_poses')
+logger = logging.getLogger(__name__)
 
 
 class PoseSampler:

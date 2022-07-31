@@ -12,21 +12,10 @@ from moleculekit.projections.metricrmsd import MetricRmsd
 from pocketoptimizer.utility.utils import load_ff_parameters
 from pocketoptimizer.utility.molecule_types import _BB_ATOMS
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.preparation.minimize_structure')
+logger = logging.getLogger(__name__)
 
 
-def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cuda: bool = False, restraint_bb: bool = True,
-                       minimize_ligand: bool = False, output_ligand: str = None, temperature: float = 300.0) -> NoReturn:
+def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cuda: bool = False, restraint_bb: bool = True, temperature: float = 300.0) -> NoReturn:
     """
     Minimization method utilizing OpenMM.
     The structures will be initialized with the corresponding force
@@ -44,10 +33,6 @@ def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cu
         Minimization on GPU. [default: False]
     restraint_bb: bool
         Applies a restraint on the backbone. [default: True]
-    minimize_ligand: bool
-        Whether to use the minimized ligand in the design [default: False]
-    output_ligand: str
-        Output name of the minimzed ligand
     temperature: float
         temperature of the system in Kelvin [default: 300.0]
     """
@@ -76,7 +61,7 @@ def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cu
     distance_tolerance = 0.00001
     if not cuda:
         # Default value
-        tolerance = 10*unit.kilojoule/unit.mole
+        tolerance = 10 * unit.kilojoule/unit.mole
     else:
         # High tolerance so the CPU only pre-minimizes
         tolerance = 1e6
@@ -97,7 +82,7 @@ def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cu
         force.addPerParticleParameter("y0")
         force.addPerParticleParameter("z0")
         for i, atom_crd in enumerate(inpcrd.positions):
-            if structure.name[i] in _BB_ATOMS:
+            if structure.name[i] in _BB_ATOMS and not structure.segid[i] == 'L':
                 force.addParticle(i, atom_crd.value_in_unit(unit.nanometers))
         system.addForce(force)
 
@@ -144,7 +129,5 @@ def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cu
     rmsd = float(metric_rmsd.project(prot_min))
     logger.info(f'RMSD between minimized and unminimized structure: {str(round(rmsd, 4))} Å.')
     structure.coords = prot_min.coords
-    if minimize_ligand:
-        structure.write(output_ligand, sel='segid L')
     structure.remove('segid L', _logger=False)
     structure.write(output_pdb)

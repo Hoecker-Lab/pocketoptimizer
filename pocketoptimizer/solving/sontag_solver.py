@@ -8,17 +8,7 @@ import logging
 
 from pocketoptimizer.utility.index_mapper import IndexMapper
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.solving.sontag_solver')
+logger = logging.getLogger(__name__)
 
 
 def run_sontag_solver(sol: int, sontag_params: Dict[str, Union[str, int, float]], output_dir: str, \

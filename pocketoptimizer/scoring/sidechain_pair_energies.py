@@ -9,17 +9,7 @@ from ffevaluation.ffevaluate import FFEvaluate
 from moleculekit.molecule import Molecule
 from tqdm.auto import tqdm
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.scoring.sidechain_pair_energies')
+logger = logging.getLogger(__name__)
 
 
 def calculate_energy(ids: Tuple[int], structure: Molecule, ffev: FFEvaluate, res_a_coords: np.ndarray, res_b_coords: np.ndarray,\
@@ -80,6 +70,7 @@ def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, 
         Number of CPUs to use for sidechain scaffold scoring [default: 1]
     """
     from pocketoptimizer.utility.utils import load_ff_parameters, create_pairs, write_energies, calculate_chunks
+    from pocketoptimizer.utility.molecule_types import backbone_atoms
 
     logger.info(f'Compute energies using forcefield: {forcefield}.')
 
@@ -128,8 +119,8 @@ def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, 
 
         struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=forcefield)
 
-        sel_res_a = f'chain {chain_a} and resid {resid_a} and sidechain'
-        sel_res_b = f'chain {chain_b} and resid {resid_b} and sidechain'
+        sel_res_a = f'chain {chain_a} and resid {resid_a} and not ({backbone_atoms})'
+        sel_res_b = f'chain {chain_b} and resid {resid_b} and not ({backbone_atoms})'
 
         # Create FFEvaluate object between residue a and b without backbone
         ffev = FFEvaluate(struc, prm, betweensets=(sel_res_a, sel_res_b))

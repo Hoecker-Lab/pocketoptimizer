@@ -5,9 +5,9 @@ import os
 import glob
 from shutil import which, rmtree
 from typing import List, Dict, Union, NoReturn
-import logging
+import logging.config
 
-logger = logging.getLogger('pocketoptimizer.ui')
+logger = logging.getLogger(__name__)
 
 # API
 class DesignPipeline:
@@ -48,26 +48,22 @@ class DesignPipeline:
         ncpus:
             Number of CPUs to use [default: 1]
         """
+        import sys
+        import multiprocessing as mp
+        from pocketoptimizer.path import path
 
         self.work_dir = work_dir
         os.chdir(self.work_dir)
         # Set environment variable to standard path
         os.environ["POCKETOPTIMIZER_LOGFILE"] = os.path.join(self.work_dir, 'pocketoptimizer.log')
-        from pocketoptimizer.path import path
+
+        logging.config.fileConfig(
+            os.path.join(os.path.dirname(os.path.realpath(__file__)), "logging.ini"), disable_existing_loggers=False
+        )
 
         # Set environment variables for MATCH
         os.environ["MATCH"] = os.path.join(path(), '..', 'MATCH_RELEASE', 'MATCH')
         os.environ["PerlChemistry"] = os.path.join(path(), '..', 'MATCH_RELEASE', 'PerlChemistry')
-
-        logging.root.handlers = []
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-            handlers=[
-                logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-                logging.StreamHandler()
-            ]
-        )
 
         def create_settings_py(work_dir: str) -> NoReturn:
             """
@@ -145,8 +141,6 @@ class DesignPipeline:
                                         '\n        self.TMP_DIR = TMP_DIR')
 
         create_settings_py(self.work_dir)
-        import sys
-        import multiprocessing as mp
         if not self.work_dir in sys.path:
             sys.path.insert(0, self.work_dir)
         self._update_settings()
@@ -174,7 +168,6 @@ class DesignPipeline:
         if self.ncpus > mp.cpu_count():
             logger.warning(f'More CPUs defined than available, setting maximum of {mp.cpu_count()} CPUs.')
             self.ncpus = mp.cpu_count()
-        os.environ['NUMEXPR_MAX_THREADS'] = str(self.ncpus)
 
     def _update_settings(self):
         """
@@ -196,15 +189,7 @@ class DesignPipeline:
 
         # Set environment variable to path defined in settingsfile
         os.environ["POCKETOPTIMIZER_LOGFILE"] = self.settings.POCKETOPTIMIZER_LOGFILE
-        logging.root.handlers = []
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-            handlers=[
-                logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-                logging.StreamHandler()
-            ]
-        )
+
         if not os.path.isdir(self.settings.TMP_DIR):
             logger.info(f'Creating temporary directory: {self.settings.TMP_DIR}')
             os.makedirs(self.settings.TMP_DIR, exist_ok=True)
@@ -506,24 +491,14 @@ class DesignPipeline:
                 system.build_complex(ligand=self.ligand_protonated)
                 input_path = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', 'native_complex')
 
-                if not self.peptide:
-                    minimize_structure.minimize_structure(
-                        structure_path=input_path,
-                        forcefield=self.forcefield,
-                        output_pdb=self.built_scaffold,
-                        cuda=cuda,
-                        restraint_bb=backbone_restraint,
-                        temperature=self.temperature)
-                else:
-                    minimize_structure.minimize_structure(
-                        structure_path=input_path,
-                        forcefield=self.forcefield,
-                        output_pdb=self.built_scaffold,
-                        cuda=cuda,
-                        restraint_bb=backbone_restraint,
-                        minimize_ligand=True,
-                        output_ligand=self.ligand_protonated,
-                        temperature=self.temperature)
+                minimize_structure.minimize_structure(
+                    structure_path=input_path,
+                    forcefield=self.forcefield,
+                    output_pdb=self.built_scaffold,
+                    cuda=cuda,
+                    restraint_bb=backbone_restraint,
+                    temperature=self.temperature)
+
                 logger.info('Your protein was successfully minimized and can be used for design now.')
 
             else:
@@ -534,7 +509,7 @@ class DesignPipeline:
 
             logger.info('Protein preparation finished.')
 
-    def prepare_mutants(self, sampling_pocket: str = 'GLY') -> NoReturn:
+    def prepare_mutants(self, sampling_pocket: str = 'ALA') -> NoReturn:
         """
         Prepares protein mutants for computations with a specific force field.
 
@@ -1068,13 +1043,14 @@ if __name__ == '__main__':
     parser.add_argument('--flex_peptide_res', type=str, nargs='*', default=None, help='Peptide residues to sample flexiblity', required=False)
     parser.add_argument('--vdw_thresh', type=float, nargs=1, default=[100.0], help='VdW-energy threshold for rotamer and ligand pose sampling (kcal/mol)', required=False)
     parser.add_argument('--rot_lib', type=str, nargs=1, default=['dunbrack'], help='Rotamer library, options are: dunbrack or cmlib', required=False)
+    parser.add_argument('--dunbrack_filter_thresh', type=float, nargs=1, default=[0.01], help='Filter threshold for the dunbrack rotamer library (value between 0 and 1)', required=False)
     parser.add_argument('--nconfs', type=int, nargs=1, default=[50], help='Number of ligand conformers to sample', required=False)
     parser.add_argument('--lig_rot', '--lig_rot', type=float, nargs=1, default=[20], help='Maximum ligand rotation', required=False)
     parser.add_argument('--lig_rot_steps', '--lig_rot_steps', type=float, nargs=1, default=[20], help='Ligand rotation steps', required=False)
     parser.add_argument('--lig_trans', '--lig_trans', type=float, nargs=1, default=[1], help='Maximum ligand translation', required=False)
     parser.add_argument('--lig_trans_steps', '--lig_trans_steps', type=float, nargs=1, default=[0.5], help='Ligand translation steps', required=False)
     parser.add_argument('--max_poses', '--max_poses', type=int, nargs=1, default=[10000], help='Maximum number of ligand poses to sample', required=False)
-    parser.add_argument('--sampling_pocket', type=str, nargs=1, default=['GLY'], help='Sampling pocket for rotamer and ligand pose sampling', required=False)
+    parser.add_argument('--sampling_pocket', type=str, nargs=1, default=['ALA'], help='Sampling pocket for rotamer and ligand pose sampling', required=False)
     parser.add_argument('--scoring', type=str, nargs=1, default=['vina'], help='Scoring function, options are: vina, vinardo, dkoes_scoring, ad4_scoring, force_field', required=False)
     parser.add_argument('--lig_scaling', type=int, nargs=1, default=[1], help='Ligand scaling factor', required=False)
     parser.add_argument('--num_solutions', type=int, nargs=1, default=[10], help='Number of design solutions to calculate', required=False)
@@ -1121,9 +1097,9 @@ if __name__ == '__main__':
             except ValueError:
                 logger.error('Define mutations in the following format RESID:RESNAME')
                 raise argparse.ArgumentTypeError('Define mutations in the following format RESID:RESNAME')
-        # Initialize new DesignPipeline in current working directory.
+        # Initialize new DesignPipeline in current working directory
         design = pocketoptimizer.DesignPipeline(work_dir=working_dir, forcefield=args.forcefield[0], ph=args.ph[0], ncpus=args.ncpus[0], peptide=True)
-        design.prepare_protein(protein_structure=args.receptor[0], keep_chains=args.keep_chains, backbone_restraint=True,
+        design.prepare_protein(protein_structure=args.receptor[0], keep_chains=args.keep_chains, backbone_restraint=False,
                                discard_mols=discard_mols, peptide_structure=args.ligand[0], peptide_mutations=peptide_mutations, cuda=bool(args.cuda[0]))
         design.prepare_peptide_conformers(positions=[resid for resid in args.flex_peptide_res], nrg_thresh=args.vdw_thresh[0])
 
@@ -1136,7 +1112,7 @@ if __name__ == '__main__':
 
     design.set_mutations(mutations)
     design.prepare_mutants(sampling_pocket=args.sampling_pocket[0])
-    design.sample_sidechain_rotamers(library=args.rot_lib[0], vdw_filter_thresh=args.vdw_thresh[0])
+    design.sample_sidechain_rotamers(library=args.rot_lib[0], vdw_filter_thresh=args.vdw_thresh[0], dunbrack_filter_thresh=args.dunbrack_filter_thresh[0])
     design.sample_lig_poses(method='grid', grid={'trans': [args.lig_trans[0], args.lig_trans_steps[0]], 'rot': [args.lig_rot[0], args.lig_rot_steps[0]]} ,
                             vdw_filter_thresh=args.vdw_thresh[0], max_poses=args.max_poses[0])
     design.calculate_energies(scoring=args.scoring[0])

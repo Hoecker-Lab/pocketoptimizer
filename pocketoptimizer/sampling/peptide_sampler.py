@@ -11,19 +11,9 @@ import logging
 from moleculekit.molecule import Molecule
 from ffevaluation.ffevaluate import FFEvaluate
 from pocketoptimizer.sampling.sidechain_rotamers_ffev import FFRotamerSampler
-from pocketoptimizer.utility.utils import DotDict
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
+logger = logging.getLogger(__name__)
 
-logger = logging.getLogger('pocketoptimizer.sampling.peptide_sampler')
 
 class PeptideSampler(FFRotamerSampler):
     """ Class for peptide conformer sampling based on rotamers using either
@@ -207,11 +197,17 @@ class PeptideSampler(FFRotamerSampler):
 
                 if resname != 'GLY' and resname != 'ALA':
                     if not N_terminus:
-                        phi_indices = struc.get('index', sel=f'(chain {chain} and resid {str(int(resid)-1)} and name C) or (chain {chain} and resid {resid} and (name N or name CA or name C))')
-                        phi_angle = struc.getDihedral(phi_indices) * (180/np.pi) + 180
+                        phi_angle = struc.getDihedral([int(struc.get('index', sel=f'chain {chain} and resid {str(int(resid)-1)} and name C')),
+                                                       int(struc.get('index', sel=f'chain {chain} and resid {resid} and name N')),
+                                                       int(struc.get('index', sel=f'chain {chain} and resid {resid} and name CA')),
+                                                       int(struc.get('index', sel=f'chain {chain} and resid {resid} and name C'))
+                                                       ]) * (180/np.pi) + 180
                     if not C_terminus:
-                        psi_indices = struc.get('index', sel=f'(chain {chain} and resid {resid} and (name N or name CA or name C)) or (chain {chain} and resid {str(int(resid)+1)} and name N)')
-                        psi_angle = struc.getDihedral(psi_indices) * (180/np.pi) + 180
+                        psi_angle = struc.getDihedral([int(struc.get('index', sel=f'chain {chain} and resid {resid} and name N')),
+                                                       int(struc.get('index', sel=f'chain {chain} and resid {resid} and name CA')),
+                                                       int(struc.get('index', sel=f'chain {chain} and resid {resid} and name C')),
+                                                       int(struc.get('index', sel=f'chain {chain} and resid {str(int(resid)+1)} and name N'))
+                                                       ]) * (180/np.pi) + 180
 
                     # Read histidine rotamers for different HIS protonation states
                     if resname in ['HID', 'HIE', 'HIP']:
@@ -236,18 +232,20 @@ class PeptideSampler(FFRotamerSampler):
                     for rotamer in chi_angles:
                         for i, torsion in enumerate(_SIDECHAIN_TORSIONS[resname]):
                             # select the four atoms forming the dihedral angle according to their atom names
-                            index_1 = int(current_rot.get('index', sel=f'name {torsion[0]}'))
-                            index_2 = int(current_rot.get('index', sel=f'name {torsion[1]}'))
-                            index_3 = int(current_rot.get('index', sel=f'name {torsion[2]}'))
-                            index_4 = int(current_rot.get('index', sel=f'name {torsion[3]}'))
-                            current_rot.setDihedral([index_1, index_2, index_3, index_4], rotamer[i] * (np.pi/180), bonds=bonds)
+                            current_rot.setDihedral([int(current_rot.get('index', sel=f'name {torsion[0]}')),
+                                                     int(current_rot.get('index', sel=f'name {torsion[1]}')),
+                                                     int(current_rot.get('index', sel=f'name {torsion[2]}')),
+                                                     int(current_rot.get('index', sel=f'name {torsion[3]}'))],
+                                                    rotamer[i] * (np.pi/180), bonds=bonds)
                         # append rotameric states as frames to residue
                         residue.appendFrames(current_rot)
-                residue.dropFrames(drop=0)
 
             else:
                 logger.error(f'Library: {self.library} not a valid option. Try cmlib or dunbrack.')
                 raise ValueError(f'Library: {self.library} not a valid option. Try cmlib or dunbrack.')
+
+            # Remove the first rotamer as it is already in the structure
+            residue.dropFrames(drop=0)
 
             for conf_id in range(confs.coords.shape[-1]):
                 modified_conf = struc.copy()
@@ -260,7 +258,6 @@ class PeptideSampler(FFRotamerSampler):
 
         struc, prm = load_ff_parameters(structure_path=self.params,
                                         forcefield=self.forcefield)
-
         # Generate FFEvaluate object
         ffev = FFEvaluate(struc, prm)
 

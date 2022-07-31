@@ -6,17 +6,7 @@ import logging
 from natsort import natsorted
 from moleculekit.molecule import Molecule
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.utility.index_mapper')
+logger = logging.getLogger(__name__)
 
 
 class IndexMapper:

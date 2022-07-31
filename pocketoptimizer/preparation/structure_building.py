@@ -16,17 +16,7 @@ from pocketoptimizer.preparation.aacodes import special2standard
 from pocketoptimizer.utility.utils import create_pairs
 from pocketoptimizer.path import path
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.preparation.structure_building')
+logger = logging.getLogger(__name__)
 
 
 class SystemBuilder:
@@ -289,8 +279,8 @@ class SystemBuilder:
             else:
                 logger.info('Peptide already built.')
 
-        # Copy the structure since atom orders can be changed
-        shutil.copy(os.path.join(self.ligand_params.params_folder, 'structure.pdb'), os.path.join('..', 'ligand.pdb'))
+        # Copy the structure since mutations can occur
+        shutil.copy(os.path.join(self.ligand_params.params_folder, 'structure.pdb'), os.path.join(self.ligand_params.params_folder, '..', 'ligand.pdb'))
 
     def build_complex(self, ligand: str, sampling_pocket: str = 'GLY') -> NoReturn:
         """Builds proteins for force field computations with ligand inside.
@@ -506,7 +496,7 @@ class SystemBuilder:
 
         if self.forcefield.startswith('amber'):
             for i in segids:
-                if i == 'L':
+                if i == 'L' and not self.peptide:
                     continue
                 caps[i] = ['none', 'none']
 
@@ -532,7 +522,7 @@ class SystemBuilder:
 
                 built_command = [self.tleap, '-f', './tleap.in']
 
-                logger.info('Starting to build.')
+                logger.info('Starting the build.')
                 os.chdir(outdir)
                 subprocess.run(built_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 logger.info('Finished building.')
@@ -557,7 +547,7 @@ class SystemBuilder:
 
         elif self.forcefield.startswith('charmm'):
             for i in segids:
-                if i == 'L':
+                if i == 'L' and not self.peptide:
                     continue
                 caps[i] = ['first none', 'last none']
             bmol = charmm.build(
@@ -580,8 +570,8 @@ class SystemBuilder:
             bmol.set('chain', 'L', f'resname MOL')
         else:
             lig_segid = bmol.get('segid')[-1]
-            bmol.set('segid', 'L', f'segid {lig_segid}')
             bmol.set('chain', 'L', f'segid {lig_segid}')
+            bmol.set('segid', 'L', f'segid {lig_segid}')
 
         segids = list(filter(None, np.unique(bmol.segid)))  # Filter empty strings that can be assigned because of ligands
         # fixed: set chain name of every segment to chain name of segment in original structure.
@@ -643,7 +633,7 @@ class SystemBuilder:
         # Remove all protons and convert to mol2
         ligand = Molecule(self.structure)
         if ph is not None:
-            ligand.filter('not element H', _logger=False)
+            ligand.remove('element H', _logger=False)
         ligand.write(ligand_mol2)
 
         # Protonate with Obabel

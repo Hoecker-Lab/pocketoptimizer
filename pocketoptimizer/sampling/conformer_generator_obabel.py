@@ -3,17 +3,7 @@ import subprocess
 import logging
 from typing import NoReturn
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.preparation.conformer_generator_obabel')
+logger = logging.getLogger(__name__)
 
 
 def merge_confs(infile: str, outfile: str) -> NoReturn:

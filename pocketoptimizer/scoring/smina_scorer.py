@@ -8,17 +8,7 @@ import numpy as np
 from moleculekit.molecule import Molecule
 from tqdm.auto import tqdm
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.scoring.smina_scorer')
+logger = logging.getLogger(__name__)
 
 
 class SminaScorer:
@@ -182,9 +172,11 @@ class SminaScorer:
         mutations: List[Dict]
             List of dictionaries defining the mutations at different positions
         """
+        from pocketoptimizer.utility.molecule_types import backbone_atoms
+
         scaffold = Molecule(self.scaffold)
         for position in mutations:
-            scaffold.remove(f"chain {position['chain']} and resid {position['resid']} and sidechain", _logger=False)
+            scaffold.remove(f"chain {position['chain']} and resid {position['resid']} and not ({backbone_atoms})", _logger=False)
         scaffold.write('tmp.pdb')
         # Remove END from pdb file because babel sucks
         with open('tmp.pdb', 'r') as infile, open('pocketless.pdb', 'w') as outfile:

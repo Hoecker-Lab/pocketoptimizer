@@ -8,17 +8,7 @@ from ffevaluation.ffevaluate import FFEvaluate
 from moleculekit.molecule import Molecule
 from tqdm.auto import tqdm
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.scoring.sidechain_scaffold_energies')
+logger = logging.getLogger(__name__)
 
 
 def calculate_energy(id: int, structure: Molecule, ffev: FFEvaluate, res_coords: np.ndarray, resid: str, chain: str) -> Tuple[np.float]:
@@ -71,6 +61,7 @@ def calculate_scaffold(work_dir: str, rotamer_path: str, mutations: List[Dict[st
         Number of CPUs to use for sidechain scaffold scoring [default: 1]
     """
     from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
+    from pocketoptimizer.utility.molecule_types import backbone_atoms
 
     logger.info(f'Compute energies using forcefield: {forcefield}.')
 
@@ -111,14 +102,14 @@ def calculate_scaffold(work_dir: str, rotamer_path: str, mutations: List[Dict[st
             struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=forcefield)
 
             # Select only the mutated residues without backbone
-            variable_selection = f'chain {chain} and resid {resid} and sidechain'
-            # Select all except the mutated residues, dont select the backbone because of high Vdw energies
-            fixed_selection = f'protein and not (chain {chain} and resid {resid} or '
+            variable_selection = f'chain {chain} and resid {resid} and not ({backbone_atoms})'
+            # Select all except the flexible side-chains, dont select the backbone because of high Vdw energies
+            fixed_selection = f'not segid L and not (chain {chain} and resid {resid} or '
             for res in mutations:
                 flex_chain, flex_res = res['chain'], res['resid']
                 if flex_chain != chain or flex_res != resid:
                     # Exclude all other mutated sidechains on different positions, since scored seperately
-                        fixed_selection += f'chain {flex_chain} and resid {flex_res} and sidechain or '
+                    fixed_selection += f'chain {flex_chain} and resid {flex_res} and not ({backbone_atoms}) or '
             fixed_selection = fixed_selection[0:-4] + ')'
 
             # Generate FFEvaluate object for scoring between sidechain and rest of protein without sidechain

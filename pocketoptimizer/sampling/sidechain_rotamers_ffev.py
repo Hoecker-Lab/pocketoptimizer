@@ -11,17 +11,7 @@ import logging
 from moleculekit.molecule import Molecule
 from ffevaluation.ffevaluate import FFEvaluate
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.sampling.sidechain_rotamers_ffev')
+logger = logging.getLogger(__name__)
 
 
 class FFRotamerSampler:
@@ -149,11 +139,11 @@ class FFRotamerSampler:
 
         with con_dunbrack:
             if N_terminus:
-                data = con_dunbrack.execute(f'SELECT * FROM {resname} WHERE psi = {roundup(psi_angle)} AND prob > {prob_cutoff}')
+                data = con_dunbrack.execute(f'SELECT * FROM {resname} WHERE psi = {roundup(psi_angle)} AND prob >= {prob_cutoff}')
             elif C_terminus:
-                data = con_dunbrack.execute(f'SELECT * FROM {resname} WHERE phi = {roundup(phi_angle)} AND prob > {prob_cutoff}')
+                data = con_dunbrack.execute(f'SELECT * FROM {resname} WHERE phi = {roundup(phi_angle)} AND prob >= {prob_cutoff}')
             else:
-                data = con_dunbrack.execute(f'SELECT * FROM {resname} WHERE phi = {roundup(phi_angle)} AND psi = {roundup(psi_angle)} AND prob > {prob_cutoff}')
+                data = con_dunbrack.execute(f'SELECT * FROM {resname} WHERE phi = {roundup(phi_angle)} AND psi = {roundup(psi_angle)} AND prob >= {prob_cutoff}')
         rotamers = []
         for rotamer in data:
             rotamers.append({'chi': rotamer[4:8],
@@ -288,6 +278,7 @@ class FFRotamerSampler:
             If the tmp directory should be deleted or not. Useful for debugging. [default: False]
         """
         from pocketoptimizer.utility.utils import MutationProcessor, load_ff_parameters, write_energies, calculate_chunks
+        from pocketoptimizer.utility.molecule_types import backbone_atoms
 
         logger.info('Start rotamer sampling procedure using FFEvaluate.')
         if self.forcefield == 'amber_ff14SB':
@@ -354,8 +345,8 @@ class FFRotamerSampler:
                         native_conf = np.expand_dims(native_residue.get('coords', sel=f'chain {chain} and resid {resid}'), axis=2)
                         residue.coords = np.dstack((residue.coords, native_conf))
                         # Set rotamers backbone onto backbone of residue
-                        ref = f'(name CA or name C or name N) and resid {resid} and chain {chain}'
-                        residue.align(sel='name N or name C or name CA', refmol=struc, refsel=ref)
+                        ref = f'chain {chain} and resid {resid} and (name N or name CA or name C)'
+                        residue.align(sel='name N or name CA or name C', refmol=struc, refsel=ref)
 
                 elif self.library == 'dunbrack':
 
@@ -364,11 +355,17 @@ class FFRotamerSampler:
                     residue.filter(f'chain {chain} and resid {resid}', _logger=False)
                     if resname != 'GLY' and resname != 'ALA':
                         if not N_terminus:
-                            phi_indices = struc.get('index', sel=f'(chain {chain} and resid {str(int(resid)-1)} and name C) or (chain {chain} and resid {resid} and (name N or name CA or name C))')
-                            phi_angle = struc.getDihedral(phi_indices) * (180/np.pi) + 180
+                            phi_angle = struc.getDihedral([int(struc.get('index', sel=f'chain {chain} and resid {str(int(resid)-1)} and name C')),
+                                                           int(struc.get('index', sel=f'chain {chain} and resid {resid} and name N')),
+                                                           int(struc.get('index', sel=f'chain {chain} and resid {resid} and name CA')),
+                                                           int(struc.get('index', sel=f'chain {chain} and resid {resid} and name C'))
+                                                           ]) * (180/np.pi) + 180
                         if not C_terminus:
-                            psi_indices = struc.get('index', sel=f'(chain {chain} and resid {resid} and (name N or name CA or name C)) or (chain {chain} and resid {str(int(resid)+1)} and name N)')
-                            psi_angle = struc.getDihedral(psi_indices) * (180/np.pi) + 180
+                            psi_angle = struc.getDihedral([int(struc.get('index', sel=f'chain {chain} and resid {resid} and name N')),
+                                                           int(struc.get('index', sel=f'chain {chain} and resid {resid} and name CA')),
+                                                           int(struc.get('index', sel=f'chain {chain} and resid {resid} and name C')),
+                                                           int(struc.get('index', sel=f'chain {chain} and resid {str(int(resid)+1)} and name N'))
+                                                           ]) * (180/np.pi) + 180
 
                         # Read histidine rotamers for different HIS protonation states
                         if resname in ['HID', 'HIE', 'HIP']:
@@ -394,11 +391,11 @@ class FFRotamerSampler:
                         for rotamer in chi_angles:
                             for i, torsion in enumerate(_SIDECHAIN_TORSIONS[resname]):
                                 # select the four atoms forming the dihedral angle according to their atom names
-                                index_1 = int(current_rot.get('index', sel=f'name {torsion[0]}'))
-                                index_2 = int(current_rot.get('index', sel=f'name {torsion[1]}'))
-                                index_3 = int(current_rot.get('index', sel=f'name {torsion[2]}'))
-                                index_4 = int(current_rot.get('index', sel=f'name {torsion[3]}'))
-                                current_rot.setDihedral([index_1, index_2, index_3, index_4], rotamer[i] * (np.pi/180), bonds=bonds)
+                                current_rot.setDihedral([int(current_rot.get('index', sel=f'name {torsion[0]}')),
+                                                         int(current_rot.get('index', sel=f'name {torsion[1]}')),
+                                                         int(current_rot.get('index', sel=f'name {torsion[2]}')),
+                                                         int(current_rot.get('index', sel=f'name {torsion[3]}'))],
+                                                        rotamer[i] * (np.pi/180), bonds=bonds)
                             # append rotameric states as frames to residue
                             residue.appendFrames(current_rot)
                 else:
@@ -407,9 +404,8 @@ class FFRotamerSampler:
 
                 nrots = residue.coords.shape[-1]
 
-                struc.filter('protein', _logger=False)
-                fixed_selection = f'protein and not (chain {chain} and resid {resid})'
-                variable_selection = f'protein and chain {chain} and resid {resid} and sidechain'
+                fixed_selection = f'not segid L and not (chain {chain} and resid {resid})'
+                variable_selection = f'chain {chain} and resid {resid} and not ({backbone_atoms})'
                 # Generate FFEvaluate object for scoring between sidechain and rest of protein without sidechain and backbone from sidechain
                 ffev = FFEvaluate(struc, prm, betweensets=(fixed_selection, variable_selection))
 

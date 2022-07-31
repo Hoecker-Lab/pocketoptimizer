@@ -9,18 +9,7 @@ from ffevaluation.ffevaluate import FFEvaluate
 from moleculekit.molecule import Molecule
 from tqdm.auto import tqdm
 
-logging.root.handlers = []
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - [%(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler(os.environ.get('POCKETOPTIMIZER_LOGFILE')),
-        logging.StreamHandler()
-    ]
-)
-
-logger = logging.getLogger('pocketoptimizer.scoring.ffscorer')
-
+logger = logging.getLogger(__name__)
 
 class FFScorer:
     """
@@ -107,6 +96,7 @@ class FFScorer:
             number of CPUs to use for scoring [default: 1]
         """
         from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
+        from pocketoptimizer.utility.molecule_types import backbone_atoms
 
         structure_path = os.path.join(self.project_path, 'scaffold', self.forcefield, 'protein_params', 'native_complex')
 
@@ -117,10 +107,10 @@ class FFScorer:
         outfile = os.path.join(outpath, 'ligand.csv')
 
         # We only want to exclude sidechain atoms
-        selection = 'protein and not ('
+        selection = 'not segid L and not ('
 
         for position in mutations:
-            selection += f"chain {position['chain']} and resid {position['resid']} and sidechain or "
+            selection += f"chain {position['chain']} and resid {position['resid']} and not ({backbone_atoms}) or "
 
         selection = selection[0:-4] + ')'
         struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
@@ -163,6 +153,7 @@ class FFScorer:
             Number of Cpu's to use for scoring [default: 1]
         """
         from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
+        from pocketoptimizer.utility.molecule_types import backbone_atoms
 
         structure_path_prepend = os.path.join(self.project_path, 'scaffold', self.forcefield, 'protein_params')
         output_file_prepend = os.path.join(self.project_path, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'ligand_sidechain_{self.forcefield}')
@@ -194,7 +185,7 @@ class FFScorer:
 
                 struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
                 ffev = FFEvaluate(struc, prm,
-                                  betweensets=(f'chain {chain} and resid {resid} and sidechain', 'segid L'))
+                                  betweensets=(f'chain {chain} and resid {resid} and not ({backbone_atoms})', 'segid L'))
 
                 batch = list(itertools.product(*[np.arange(nposes), np.arange(nrots)]))
                 # Create array (nposes * nrots * 2 (vdw and es))
