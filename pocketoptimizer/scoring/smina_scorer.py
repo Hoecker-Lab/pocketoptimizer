@@ -271,7 +271,7 @@ class SminaScorer:
         return self.parse_smina(process.stdout.decode('ascii'), nposes=nposes)
 
     def run_smina_scorer(self, mutations: List[Dict[str, Union[str, List[str]]]],
-                         ncpus: int = 1, _keep_tmp: bool = True) -> None or NoReturn:
+                         ncpus: int = 1, _keep_tmp: bool = False) -> None or NoReturn:
         """
         Wrapper to run smina ligand protein interaction energy scoring
         Reading in ligand structure (ligand.mol2) and ligand poses from starting pose ligand_poses.pdb and ligand_poses.xtc trajectory
