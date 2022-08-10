@@ -15,7 +15,8 @@ from pocketoptimizer.utility.molecule_types import _BB_ATOMS
 logger = logging.getLogger(__name__)
 
 
-def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cuda: bool = False, restraint_bb: bool = True, temperature: float = 300.0) -> NoReturn:
+def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cuda: bool = False,
+                       restraint_bb: bool = True, output_ligand = '', temperature: float = 300.0) -> NoReturn:
     """
     Minimization method utilizing OpenMM.
     The structures will be initialized with the corresponding force
@@ -34,7 +35,9 @@ def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cu
     restraint_bb: bool
         Applies a restraint on the backbone. [default: True]
     temperature: float
-        temperature of the system in Kelvin [default: 300.0]
+        Temperature of the system in Kelvin [default: 300.0]
+    output_ligand: str
+        Output the minimized ligand structure as well to the following path [default: '']
     """
 
     if forcefield.startswith('amber'):
@@ -129,5 +132,6 @@ def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cu
     rmsd = float(metric_rmsd.project(prot_min))
     logger.info(f'RMSD between minimized and unminimized structure: {str(round(rmsd, 4))} Å.')
     structure.coords = prot_min.coords
-    structure.remove('segid L', _logger=False)
-    structure.write(output_pdb)
+    if output_ligand:
+        structure.write(output_ligand, sel='segid L')
+    structure.write(output_pdb, sel='not segid L')

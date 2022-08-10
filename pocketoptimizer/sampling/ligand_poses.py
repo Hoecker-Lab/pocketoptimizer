@@ -231,20 +231,24 @@ class PoseSampler:
         -------
         3D-array containing all the poses.
         """
-
-        rot_samples = self.rotational_sampling(rot, rot_step)
-        trans_samples = self.translational_sampling(trans, trans_step)
-
         rotated_coords = []
-        for axis in rot_samples:
-            for matrix in axis:
-                rotated_coords.append(self.rotate(coordinates, matrix, center))
-
         sampled_poses = []
-        for pose in rotated_coords:
-            for axis in trans_samples:
-                for vector in axis:
-                    sampled_poses.append(self.translate(pose, vector))
+
+        if rot:
+            rot_samples = self.rotational_sampling(rot, rot_step)
+            for axis in rot_samples:
+                for matrix in axis:
+                    rotated_coords.append(self.rotate(coordinates, matrix, center))
+        else:
+            rotated_coords.append(coordinates)
+        if trans:
+            trans_samples = self.translational_sampling(trans, trans_step)
+            for pose in rotated_coords:
+                for axis in trans_samples:
+                    for vector in axis:
+                        sampled_poses.append(self.translate(pose, vector))
+        if not sampled_poses:
+            sampled_poses.append(coordinates)
 
         return np.array(sampled_poses).transpose(1, 2, 0)
 

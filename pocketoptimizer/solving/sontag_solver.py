@@ -131,7 +131,7 @@ def calculate_design_solutions(solver_bin: str, temp_dir: str, out_path: str, nu
     exclude: str
         Path to file containing pose Ids to exclude
     keep_tmp: bool
-        Whether the temporary directory should be removed or kept in the end
+        Whether the temporary directory should be removed or kept in the end [default: False]
 
     """
     logger.info('Calculating Solutions.')
@@ -184,6 +184,6 @@ def calculate_design_solutions(solver_bin: str, temp_dir: str, out_path: str, nu
             penalty_energy=penalty_energy
         )
 
-    os.chdir("..")
     if not keep_tmp:
-        rmtree(tmp_dir)
+        if os.path.isdir(tmp_dir):
+            rmtree(tmp_dir)

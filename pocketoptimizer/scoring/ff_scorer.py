@@ -203,7 +203,7 @@ class FFScorer:
                                     chain=chain,
                                     resid=resid
                                 ), batch,
-                                chunksize=calculate_chunks(nposes=nposes, ncpus=ncpus))):
+                                chunksize=calculate_chunks(nposes=len(batch), ncpus=ncpus))):
                             pair_nrgs[batch[index][0], batch[index][1]*2:batch[index][1]*2 + 2] = energy
                             pbar.update()
 

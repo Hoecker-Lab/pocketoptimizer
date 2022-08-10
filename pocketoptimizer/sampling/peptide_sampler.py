@@ -99,16 +99,7 @@ class PeptideSampler(FFRotamerSampler):
         structure.set('coords', structure.coords[:, :, conf_id])
         energies = ffev.calculateEnergies(structure.coords[:, :, conf_id])
         structure.write(os.path.join(self.tmp, f'ligand_conf_{conf_id}.pdb'))
-        total_nrg = 0
-        for comp, nrg in energies.items():
-            if comp == 'elec':
-                total_nrg += nrg * 0.01
-            elif comp == 'total':
-                continue
-            else:
-                total_nrg += nrg
-
-        return total_nrg
+        return energies['total']
 
     def conformer_sampling(self, nrg_thresh: float = 100.0, dunbrack_filter_thresh: float = -1,
                            expand: List[str] = [], ncpus: int = 1, _keep_tmp: bool = False) -> NoReturn:
@@ -152,7 +143,9 @@ class PeptideSampler(FFRotamerSampler):
         struc = Molecule(structure_path)
         confs = struc.copy()
 
-        mutation_processor = MutationProcessor(structure=structure_path, mutations=self.positions)
+        mutation_processor = MutationProcessor(structure=structure_path,
+                                               mutations=self.positions,
+                                               forcefield=self.forcefield)
         termini_positions = mutation_processor.check_termini()
 
         for position in self.positions:
@@ -175,7 +168,15 @@ class PeptideSampler(FFRotamerSampler):
                     residue = struc.copy()
                     residue.filter(f'chain {chain} and resid {resid}', _logger=False)
                 else:
-                    residue = self.read_cmlib(resname)
+                    if self.forcefield == 'charmm36':
+                        if resname == 'HSD':
+                            residue = self.read_cmlib('HID')
+                        elif resname == 'HSE':
+                            residue = self.read_cmlib('HIE')
+                        elif resname == 'HSP':
+                            residue = self.read_cmlib('HIP')
+                    else:
+                        residue = self.read_cmlib(resname)
                     native_residue = struc.copy()
 
                     # Take care of additional atoms at N-and C-terminus
@@ -210,10 +211,12 @@ class PeptideSampler(FFRotamerSampler):
                                                        ]) * (180/np.pi) + 180
 
                     # Read histidine rotamers for different HIS protonation states
-                    if resname in ['HID', 'HIE', 'HIP']:
-                        resname = 'HIS'
+                    if resname in ['HID', 'HIE', 'HIP', 'HSD', 'HSE', 'HSP']:
+                        _resname = 'HIS'
+                    else:
+                        _resname = resname
 
-                    rotamers = self.read_dunbrack(resname=resname,
+                    rotamers = self.read_dunbrack(resname=_resname,
                                                   phi_angle=phi_angle,
                                                   psi_angle=psi_angle,
                                                   N_terminus=N_terminus,

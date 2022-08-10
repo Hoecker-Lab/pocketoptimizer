@@ -456,7 +456,7 @@ class SystemBuilder:
         if not os.path.isfile(os.path.join(self.ligand_params.params_folder, 'structure.pdb')):
             mut_structure = struc.copy()
             for position in self.mutations:
-                chain, resid, aa = position['chain'], position['resid'], position['mutation']
+                chain, resid, aa = position['chain'], position['resid'], position['mutations'][0]
                 logger.info(f'Mutate resid {resid} to {aa}.')
                 mut_structure.mutateResidue(sel=f'chain {chain} and resid {resid}', newres=aa)
 

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class MutationProcessor:
 
-    def __init__(self, structure: str, mutations: List[Dict[str, Union[str, List[str]]]]):
+    def __init__(self, structure: str, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str):
         """
         Constructor Method.
 
@@ -32,6 +32,8 @@ class MutationProcessor:
             Path to the prepared and minimized PDB structure file.
         mutations: list
             List of Dictionaries containing mutations with their corresponding resids and chains
+        forcefield: str
+            Force field used
         """
         try:
             self.structure = Molecule(structure)
@@ -49,14 +51,22 @@ class MutationProcessor:
             'BASIC': ['LYS', 'ARG'],
             'HYDRO': ['SER', 'THR'],
             'SULF': ['CYS', 'MET'],
-            'HIS': ['HID', 'HIE', 'HIP']
         }
+        if forcefield == 'amber_ff14SB':
+            self.aa.update({'HIS': ['HID', 'HIE', 'HIP']})
+        elif forcefield == 'charmm36':
+            self.aa.update({'HIS': ['HSD', 'HSE', 'HSP']})
 
-    def check_positions(self) -> NoReturn:
+    def check_positions(self, check_termini: bool = True) -> NoReturn:
         """
         Checks whether a mutation position exists in the structure,
         is not at the end of a segment and not involved in a disulfide bond
         Removes positions that do not fulfill these criteria
+
+        Parameters
+        ----------
+        check_termini: bool
+            Whether to check for termini positions [default: True]
         """
         updated_mutations = []
         for mutation in self.mutations:
@@ -73,10 +83,10 @@ class MutationProcessor:
             elif cystine:
                 logger.warning(f'Position: {chain}_{resid} was removed because it is involved in a disulfide bond.')
                 continue
-            elif int(resid) == min(self.structure.get('resid', sel=f'segid {segid[0]}')):
+            elif check_termini and int(resid) == min(self.structure.get('resid', sel=f'segid {segid[0]}')):
                 logger.warning(f'Position: {chain}_{resid} is the N-terminus of segment: {segid[0]}.')
                 continue
-            elif int(resid) == max(self.structure.get('resid', sel=f'segid {segid[0]}')):
+            elif check_termini and int(resid) == max(self.structure.get('resid', sel=f'segid {segid[0]}')):
                 logger.warning(f'Position: {chain}_{resid} is the C-terminus of segment: {segid[0]}.')
                 continue
             else:
@@ -108,7 +118,7 @@ class MutationProcessor:
                 elif mutation in self.aa.keys():
                     if mutation == 'HIS':
                         logger.warning('Histidine will be unfolded to its three protonation states. '
-                                       'Write HID, HIE, HIP to define a specific protonation state at N_delta, N_epsilon or N_delta and N_epsilon respectively.')
+                                       f'Write {", ".join(self.aa["HIS"])} to define a specific protonation state at N_delta, N_epsilon or N_delta and N_epsilon respectively.')
                     corrected_mutations.extend(self.aa[mutation])
                 else:
                     logger.warning(f'Unkown residue: {mutation} has been removed.')
@@ -177,12 +187,21 @@ class MutationProcessor:
         mutations_sorted = natsorted(mutations_sorted, key=lambda k: (k['chain'], k['resid']))
         self.mutations = mutations_sorted
 
-    def process_mutations(self) -> List[Dict[str, Union[str, List[str]]]]:
+    def process_mutations(self, check_termini: bool = True) -> List[Dict[str, Union[str, List[str]]]]:
         """
         Process mutations
+
+        Parameters
+        ----------
+        check_termini: bool
+            Whether to check for termini positions [default: True]
+
+        Return
+        ------
+        Process list of mutations
         """
         # Check that position in protein and not involved in cystine bridge
-        self.check_positions()
+        self.check_positions(check_termini=check_termini)
         # Replace keyword arguments and check for amino acids
         self.unfold_keywords()
         # merge duplicates

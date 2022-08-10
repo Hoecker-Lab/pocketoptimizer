@@ -293,7 +293,9 @@ class FFRotamerSampler:
         os.chdir(self.tmp)
         logger.info(f"Using {ncpus} CPU's for multiprocessing.")
 
-        mutation_processor = MutationProcessor(structure=os.path.join(self.work_dir, 'scaffold', self.forcefield, 'scaffold.pdb'), mutations=self.mutations)
+        mutation_processor = MutationProcessor(structure=os.path.join(self.work_dir, 'scaffold', self.forcefield, 'scaffold.pdb'),
+                                               mutations=self.mutations,
+                                               forcefield=self.forcefield)
         termini_positions = mutation_processor.check_termini()
 
         for mutation in self.mutations:
@@ -333,7 +335,15 @@ class FFRotamerSampler:
                         residue = struc.copy()
                         residue.filter(f'chain {chain} and resid {resid}', _logger=False)
                     else:
-                        residue = self.read_cmlib(resname)
+                        if self.forcefield == 'charmm36':
+                            if resname == 'HSD':
+                                residue = self.read_cmlib('HID')
+                            elif resname == 'HSE':
+                                residue = self.read_cmlib('HIE')
+                            elif resname == 'HSP':
+                                residue = self.read_cmlib('HIP')
+                        else:
+                            residue = self.read_cmlib(resname)
                         native_residue = struc.copy()
                         # Take care of additional atoms at N-and C-terminus
                         if N_terminus:
@@ -349,7 +359,6 @@ class FFRotamerSampler:
                         residue.align(sel='name N or name CA or name C', refmol=struc, refsel=ref)
 
                 elif self.library == 'dunbrack':
-
                     # Keep original rotamer
                     residue = struc.copy()
                     residue.filter(f'chain {chain} and resid {resid}', _logger=False)
@@ -368,10 +377,12 @@ class FFRotamerSampler:
                                                            ]) * (180/np.pi) + 180
 
                         # Read histidine rotamers for different HIS protonation states
-                        if resname in ['HID', 'HIE', 'HIP']:
-                            resname = 'HIS'
+                        if resname in ['HID', 'HIE', 'HIP', 'HSD', 'HSE', 'HSP']:
+                            _resname = 'HIS'
+                        else:
+                            _resname = resname
 
-                        rotamers = self.read_dunbrack(resname=resname,
+                        rotamers = self.read_dunbrack(resname=_resname,
                                                       phi_angle=phi_angle,
                                                       psi_angle=psi_angle,
                                                       N_terminus=N_terminus,
