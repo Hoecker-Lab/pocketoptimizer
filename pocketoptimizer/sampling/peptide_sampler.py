@@ -78,7 +78,7 @@ class PeptideSampler(FFRotamerSampler):
                             merged_rot_file.write(line)
                 merged_rot_file.write('END')
 
-    def calculate_vdw(self, conf_id: int, structure: Molecule, ffev: FFEvaluate) -> np.float:
+    def calculate_nrg(self, conf_id: int, structure: Molecule, ffev: FFEvaluate) -> np.float:
         """
         Calculates the energy of a peptide conformation
 
@@ -139,113 +139,81 @@ class PeptideSampler(FFRotamerSampler):
         os.chdir(self.tmp)
 
         logger.info('Start conformer sampling procedure.')
-        structure_path = os.path.join(self.work_dir, 'ligand', self.forcefield, 'ligand.pdb')
-        struc = Molecule(structure_path)
-        confs = struc.copy()
 
-        mutation_processor = MutationProcessor(structure=structure_path,
+        mutation_processor = MutationProcessor(structure=os.path.join(self.work_dir, 'ligand', self.forcefield, 'ligand.pdb'),
                                                mutations=self.positions,
                                                forcefield=self.forcefield)
         termini_positions = mutation_processor.check_termini()
+        struc, prm = load_ff_parameters(structure_path=self.params,
+                                        forcefield=self.forcefield)
+        confs = struc.copy()
 
         for position in self.positions:
+
             chain = position['chain']
             resid = position['resid']
             resname = struc.get('resname', f'chain {chain} and resid {resid} and name CA')[0]
-            N_terminus = False
-            C_terminus = False
 
-            # Check if the position is at the N-or C-terminus of the protein
-            if 'N-terminus' in termini_positions:
-                if f'{chain}_{resid}' in termini_positions['N-terminus']:
-                    N_terminus = True
-            elif 'C-terminus' in termini_positions:
-                if f'{chain}_{resid}' in termini_positions['C-terminus']:
-                    C_terminus = True
-
-            if self.library == 'cmlib':
-                if resname == 'GLY' or resname == 'ALA':
-                    residue = struc.copy()
-                    residue.filter(f'chain {chain} and resid {resid}', _logger=False)
-                else:
-                    if self.forcefield == 'charmm36':
-                        if resname == 'HSD':
-                            residue = self.read_cmlib('HID')
-                        elif resname == 'HSE':
-                            residue = self.read_cmlib('HIE')
-                        elif resname == 'HSP':
-                            residue = self.read_cmlib('HIP')
+            # Keep original rotamer
+            residue = struc.copy()
+            residue.filter(f'chain {chain} and resid {resid}', _logger=False)
+            if resname != 'GLY' and resname != 'ALA':
+                if self.library == 'cmlib':
+                    rotamers = self.read_db(resname=resname)
+                elif self.library == 'dunbrack':
+                    # Check if the position is at the N-or C-terminus of the protein
+                    if f'{chain}_{resid}' in termini_positions:
+                        self.library = 'cmlib'
+                        rotamers = self.read_db(resname=resname)
+                        self.library = 'dunbrack'
                     else:
-                        residue = self.read_cmlib(resname)
-                    native_residue = struc.copy()
-
-                    # Take care of additional atoms at N-and C-terminus
-                    if N_terminus:
-                        native_residue.filter(f'chain {chain} and resid {resid} and not (name H2 or name H3)', _logger=False)
-                    elif C_terminus:
-                        native_residue.filter(f'chain {chain} and resid {resid} and not name OXT', _logger=False)
-                    else:
-                        native_residue.filter(f'chain {chain} and resid {resid}', _logger=False)
-                    native_conf = np.expand_dims(native_residue.get('coords', sel=f'chain {chain} and resid {resid}'), axis=2)
-                    residue.coords = np.dstack((residue.coords, native_conf))
-                        # Set rotamers backbone onto backbone of residue
-                    ref = f'(name CA or name C or name N) and resid {resid} and chain {chain}'
-                    residue.align(sel='name N or name C or name CA', refmol=struc, refsel=ref)
-
-            elif self.library == 'dunbrack':
-                residue = struc.copy()
-                residue.filter(f'chain {chain} and resid {resid}', _logger=False)
-
-                if resname != 'GLY' and resname != 'ALA':
-                    if not N_terminus:
                         phi_angle = struc.getDihedral([int(struc.get('index', sel=f'chain {chain} and resid {str(int(resid)-1)} and name C')),
                                                        int(struc.get('index', sel=f'chain {chain} and resid {resid} and name N')),
                                                        int(struc.get('index', sel=f'chain {chain} and resid {resid} and name CA')),
                                                        int(struc.get('index', sel=f'chain {chain} and resid {resid} and name C'))
                                                        ]) * (180/np.pi) + 180
-                    if not C_terminus:
+
                         psi_angle = struc.getDihedral([int(struc.get('index', sel=f'chain {chain} and resid {resid} and name N')),
                                                        int(struc.get('index', sel=f'chain {chain} and resid {resid} and name CA')),
                                                        int(struc.get('index', sel=f'chain {chain} and resid {resid} and name C')),
                                                        int(struc.get('index', sel=f'chain {chain} and resid {str(int(resid)+1)} and name N'))
                                                        ]) * (180/np.pi) + 180
 
-                    # Read histidine rotamers for different HIS protonation states
-                    if resname in ['HID', 'HIE', 'HIP', 'HSD', 'HSE', 'HSP']:
-                        _resname = 'HIS'
-                    else:
-                        _resname = resname
+                        # Read histidine rotamers for different HIS protonation states
+                        if resname in ['HID', 'HIE', 'HIP', 'HSD', 'HSE', 'HSP']:
+                            _resname = 'HIS'
+                        else:
+                            _resname = resname
 
-                    rotamers = self.read_dunbrack(resname=_resname,
-                                                  phi_angle=phi_angle,
-                                                  psi_angle=psi_angle,
-                                                  N_terminus=N_terminus,
-                                                  C_terminus=C_terminus,
-                                                  prob_cutoff=dunbrack_filter_thresh)
+                        rotamers = self.read_db(resname=_resname,
+                                                phi_angle=phi_angle,
+                                                psi_angle=psi_angle,
+                                                prob_cutoff=dunbrack_filter_thresh)
 
-                    chi_angles = self.expand_dunbrack(rotamers=rotamers,
-                                                      expand=expand)
+                        rotamers = self.expand_dunbrack(rotamers=rotamers,
+                                                        expand=expand)
 
-                    current_rot = residue.copy()
-                    # Break proline rings, since no dihedral setting possible
-                    if resname == 'PRO':
-                        current_rot.deleteBonds(sel='name N or name CD', inter=False)
-                    bonds = current_rot.bonds
-                    # Iterate over all rotamers
-                    for rotamer in chi_angles:
-                        for i, torsion in enumerate(_SIDECHAIN_TORSIONS[resname]):
-                            # select the four atoms forming the dihedral angle according to their atom names
-                            current_rot.setDihedral([int(current_rot.get('index', sel=f'name {torsion[0]}')),
-                                                     int(current_rot.get('index', sel=f'name {torsion[1]}')),
-                                                     int(current_rot.get('index', sel=f'name {torsion[2]}')),
-                                                     int(current_rot.get('index', sel=f'name {torsion[3]}'))],
-                                                    rotamer[i] * (np.pi/180), bonds=bonds)
-                        # append rotameric states as frames to residue
-                        residue.appendFrames(current_rot)
+                else:
+                    logger.error(f'Library: {self.library} not implemented.')
+                    raise ValueError(f'Library: {self.library} not implemented.')
 
-            else:
-                logger.error(f'Library: {self.library} not a valid option. Try cmlib or dunbrack.')
-                raise ValueError(f'Library: {self.library} not a valid option. Try cmlib or dunbrack.')
+                # Keep original rotamer
+                current_rot = residue.copy()
+                # Break proline rings, since no dihedral setting possible
+                if resname == 'PRO':
+                    current_rot.deleteBonds(sel='name N or name CD', inter=False)
+                bonds = current_rot.bonds
+                # Iterate over all rotamers
+                for rotamer in rotamers:
+                    for i, torsion in enumerate(_SIDECHAIN_TORSIONS[resname]):
+                        # select the four atoms forming the dihedral angle according to their atom names
+                        current_rot.setDihedral([int(current_rot.get('index', sel=f'name {torsion[0]}')),
+                                                 int(current_rot.get('index', sel=f'name {torsion[1]}')),
+                                                 int(current_rot.get('index', sel=f'name {torsion[2]}')),
+                                                 int(current_rot.get('index', sel=f'name {torsion[3]}'))],
+                                                rotamer[i] * (np.pi/180), bonds=bonds)
+                    # append rotameric states as frames to residue
+                    residue.appendFrames(current_rot)
 
             # Remove the first rotamer as it is already in the structure
             residue.dropFrames(drop=0)
@@ -259,8 +227,6 @@ class PeptideSampler(FFRotamerSampler):
 
         nconfs = confs.coords.shape[-1]
 
-        struc, prm = load_ff_parameters(structure_path=self.params,
-                                        forcefield=self.forcefield)
         # Generate FFEvaluate object
         ffev = FFEvaluate(struc, prm)
 
@@ -268,7 +234,7 @@ class PeptideSampler(FFRotamerSampler):
         with tqdm(total=nconfs, desc='Filter Conformers') as pbar:
             with mp.Pool(processes=ncpus) as pool:
                 for pose_id, energy in enumerate(pool.imap(
-                        partial(self.calculate_vdw,
+                        partial(self.calculate_nrg,
                                 structure=confs.copy(),
                                 ffev=ffev
                                 ), np.arange(nconfs),

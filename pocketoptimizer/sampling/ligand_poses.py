@@ -463,10 +463,8 @@ class PoseSampler:
                 ligand_confs.coords = np.dstack((ligand_confs.coords, native_conf))
         except (IndexError, FileNotFoundError):
             # If ligand confs doesn't exist or doesn't contain conformers
-            logger.error(f'{self.ligand} does not exist or does not contain conformers.'
-                  f' Continue with input pose.')
-            struc.filter('segid L', _logger=False)
-            ligand_confs = struc
+            logger.error(f'{self.ligand} does not exist or does not contain conformers.')
+            raise FileNotFoundError(f'{self.ligand} does not exist or does not contain conformers.')
 
         # Atom order needs to be the same in both files
         if (struc.get('name', 'segid L') != ligand_confs.get('name')).all():

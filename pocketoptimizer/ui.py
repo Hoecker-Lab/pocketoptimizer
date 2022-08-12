@@ -354,7 +354,7 @@ class DesignPipeline:
 
     def prepare_peptide_conformers(self, positions: List[str], library: str = 'dunbrack',
                                    nrg_thresh: float = 100.0, expand: List[str] = ['chi1', 'chi2'],
-                                   dunbrack_filter_thresh: float = 0.000001):
+                                   dunbrack_filter_thresh: float = 0.001):
         """
         positions: list
             List of residue IDs to sample rotamers for
@@ -366,7 +366,7 @@ class DesignPipeline:
         expand: list
             List of which chi angles to expand, [default: ['chi1', 'chi2']]
         dunbrack_filter_thresh: float
-            Only rotamers with an occurence above this value are selected from the library [default: 0.0001 %]
+            Only rotamers with an occurence above this value are selected from the library [default: 0.1 %]
         """
         from pocketoptimizer.sampling.peptide_sampler import PeptideSampler
 
@@ -565,7 +565,7 @@ class DesignPipeline:
         logger.info('Scaffold building done.')
 
     def sample_sidechain_rotamers(self, library: str = 'dunbrack', vdw_filter_thresh: float = 100.0,
-                                  dunbrack_filter_thresh: float = 0.000001, expand: List[str] = ['chi1', 'chi2']) -> NoReturn:
+                                  dunbrack_filter_thresh: float = 0.001, expand: List[str] = ['chi1', 'chi2']) -> NoReturn:
         """Uses the dunbrack or cm_lib rotamer library to compute possible rotamers of defined residues.
         Energies for rotamer pruning are calculated using ffevaluate with the amber_ff14SB or charmm36 force field
 
@@ -581,7 +581,7 @@ class DesignPipeline:
         dunbrack_filter_thresh: float
             Filter threshold, rotamers having probability of occurence lower than filter threshold will
             be pruned if their rotameric mod does occur more than once, value should be between 0 and 1
-            (-1: no pruning, 1: pruning of all rotamers with duplicate rotamer modes) [default: 0.0001 %]
+            (-1: no pruning, 1: pruning of all rotamers with duplicate rotamer modes) [default: 0.1 %]
         expand: list
             List of which chi angles to expand, [default: ['chi1', 'chi2']]
         """
@@ -704,7 +704,7 @@ class DesignPipeline:
             logger.error('Scorer not implemented.')
             raise NotImplementedError('Scorer not implemented.')
 
-        logger.info('Start energy calculation.')
+        logger.info('Start energy calculations.')
         logger.info(f'Using {self.ncpus} CPUs for multiprocessing.')
 
         logger.info('Calculate Sidechain-Scaffold Energies.')

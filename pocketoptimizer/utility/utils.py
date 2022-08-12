@@ -56,6 +56,7 @@ class MutationProcessor:
             self.aa.update({'HIS': ['HID', 'HIE', 'HIP']})
         elif forcefield == 'charmm36':
             self.aa.update({'HIS': ['HSD', 'HSE', 'HSP']})
+        self.aa['ALL'].extend(self.aa['HIS'])
 
     def check_positions(self, check_termini: bool = True) -> NoReturn:
         """
@@ -84,11 +85,9 @@ class MutationProcessor:
                 logger.warning(f'Position: {chain}_{resid} was removed because it is involved in a disulfide bond.')
                 continue
             elif check_termini and int(resid) == min(self.structure.get('resid', sel=f'segid {segid[0]}')):
-                logger.warning(f'Position: {chain}_{resid} is the N-terminus of segment: {segid[0]}.')
-                continue
+                logger.info(f'Position: {chain}_{resid} is the N-terminus of segment: {segid[0]}.')
             elif check_termini and int(resid) == max(self.structure.get('resid', sel=f'segid {segid[0]}')):
-                logger.warning(f'Position: {chain}_{resid} is the C-terminus of segment: {segid[0]}.')
-                continue
+                logger.info(f'Position: {chain}_{resid} is the C-terminus of segment: {segid[0]}.')
             else:
                 updated_mutations.append(mutation)
 
@@ -148,17 +147,17 @@ class MutationProcessor:
 
         self.mutations = updated_mutations
 
-    def check_termini(self) -> Dict[str, List[str]]:
+    def check_termini(self) -> List[str]:
         """
         Checks which mutations are intended at the first or last position of a segment
 
         Returns
         -------
 
-        Dictionary containing lists of mutations sorted after N-and C-terminus
+        List containing mutations at termini positions
         """
 
-        termini_positions = {}
+        termini_positions = []
 
         for mutation in self.mutations:
             chain = mutation['chain']
@@ -166,10 +165,10 @@ class MutationProcessor:
             segid = self.structure.get("segid", sel=f"chain {chain} and resid {resid} and name CA")
             if int(resid) == min(self.structure.get('resid', sel=f'segid {segid[0]}')):
                 logger.warning(f'Position: {chain}_{resid} is the N-terminus of segment: {segid[0]}.')
-                termini_positions.setdefault('N-terminus', [f'{chain}_{resid}']).append(f'{chain}_{resid}')
+                termini_positions.append(f'{chain}_{resid}')
             elif int(resid) == max(self.structure.get('resid', sel=f'segid {segid[0]}')):
                 logger.warning(f'Position: {chain}_{resid} is the C-terminus of segment: {segid[0]}.')
-                termini_positions.setdefault('C-terminus', [f'{chain}_{resid}']).append(f'{chain}_{resid}')
+                termini_positions.append(f'{chain}_{resid}')
 
         return termini_positions
 

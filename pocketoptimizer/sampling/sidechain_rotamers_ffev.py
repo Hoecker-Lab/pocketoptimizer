@@ -58,58 +58,33 @@ class FFRotamerSampler:
         self.rot_path = rot_path
         self.tmp = tmp
 
-    def read_cmlib(self, residue: str) -> Molecule:
+    def read_db(self, resname: str, phi_angle: float = 0.0, psi_angle: float = 0.0, prob_cutoff: float = -1) -> List[Dict[str, float] or int]:
         """
-        Reads a .pdb file for a respective amino acid within the CM rotamer library.
-
-        Parameters
-        ----------
-        residue: str
-            Three letter amino acid code.
-
-        Returns
-        -------
-        :class: moleculekit.Molecule object that contains all rotamers.
-        """
-        import pocketoptimizer.path as po_path
-
-        rotamer_path = os.path.join(po_path.path(), '..', 'rotamers', 'cm_lib')
-        return Molecule(os.path.join(rotamer_path, f'{residue}.pdb'))
-
-    def read_dunbrack(self, resname: str, phi_angle: float, psi_angle: float,
-                      N_terminus: bool, C_terminus: bool, prob_cutoff: float = -1) -> List[Dict]:
-        """
-        Reading function for dunbrack rotamer library.
+        Reading function for rotamer libraries.
 
         Parameters
         ----------
 
         resname: str
-            Name of the residue
+            Name of the residue table to read
         phi_angle: float
-            Backbone phi angle of residue in degree
+            Backbone phi angle of residue in degree [default: 0.0]
         psi_angle: float
-            Backbone psi angle of residue in degree
-        N_terminus: bool
-            Whether the position is at the N-terminus of a segment
-        C_terminus: bool
-            Whether the position is at the C-terminus of a segment
+            Backbone psi angle of residue in degree [default: 0.0]
         prob_cutoff: float
             Rotamers occouring with probability less than prob_cutoff will
             be pruned if their rotameric mode is not unique [default: -1] (no pruning)
 
         Returns
         -------
-        List of dictionaries for rotamers containing chi angles and standard deviations
-        for rotamers belonging to a respective phi/psi angle combination
-
+        Dunbrack:
+            List of dictionaries for rotamers containing chi angles and standard deviations
+            for rotamers belonging to a respective phi/psi angle combination
+        CMLib:
+            List of chi angles
         """
         import sqlite3 as sl
         import pocketoptimizer.path as po_path
-
-        # Connect to rotamer library
-        if self.library == 'dunbrack':
-            con_dunbrack = sl.connect(os.path.join(po_path.path(), '..', 'rotamers', 'dunbrack.db'))
 
         def roundup(x: float, n: int = 10) -> int:
             """
@@ -137,17 +112,25 @@ class FFRotamerSampler:
             else:
                 return res
 
-        with con_dunbrack:
-            if N_terminus:
-                data = con_dunbrack.execute(f'SELECT * FROM {resname} WHERE psi = {roundup(psi_angle)} AND prob >= {prob_cutoff}')
-            elif C_terminus:
-                data = con_dunbrack.execute(f'SELECT * FROM {resname} WHERE phi = {roundup(phi_angle)} AND prob >= {prob_cutoff}')
-            else:
-                data = con_dunbrack.execute(f'SELECT * FROM {resname} WHERE phi = {roundup(phi_angle)} AND psi = {roundup(psi_angle)} AND prob >= {prob_cutoff}')
         rotamers = []
-        for rotamer in data:
-            rotamers.append({'chi': rotamer[4:8],
-                             'std': rotamer[8:]})
+        # Connect to rotamer library
+        if self.library == 'dunbrack':
+            con_dunbrack = sl.connect(os.path.join(po_path.path(), '..', 'rotamers', 'dunbrack.db'))
+            with con_dunbrack:
+                data = con_dunbrack.execute(f'SELECT * FROM {resname} WHERE phi = {roundup(phi_angle)} AND psi = {roundup(psi_angle)} AND prob >= {prob_cutoff}')
+            for rotamer in data:
+                rotamers.append({'chi': rotamer[4:8],
+                                 'std': rotamer[8:]})
+        elif self.library == 'cmlib':
+            con_cmlib = sl.connect(os.path.join(po_path.path(), '..', 'rotamers', 'cmlib.db'))
+            with con_cmlib:
+                data = con_cmlib.execute(f'SELECT * FROM {resname}')
+            for rotamer in data:
+                rotamers.append(rotamer[1:])
+        else:
+            logger.error(f'Could not read from library: {self.library}.')
+            raise ValueError(f'Could not read from library: {self.library}.')
+
         return rotamers
 
     def expand_dunbrack(self, rotamers: List[Dict[str, float or List[int or float]]], expand: List[str] = ['chi1', 'chi2']) -> List[Tuple[float]]:
@@ -301,16 +284,6 @@ class FFRotamerSampler:
         for mutation in self.mutations:
             resid = mutation['resid']
             chain = mutation['chain']
-            N_terminus = False
-            C_terminus = False
-
-            # Check if the position is at the N-or C-terminus of the protein
-            if 'N-terminus' in termini_positions:
-                if f'{chain}_{resid}' in termini_positions['N-terminus']:
-                    N_terminus = True
-            elif 'C-terminus' in termini_positions:
-                if f'{chain}_{resid}' in termini_positions['C-terminus']:
-                    C_terminus = True
 
             for resname in mutation['mutations']:
                 # Check computation status of rotamer
@@ -330,88 +303,66 @@ class FFRotamerSampler:
 
                 struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
 
-                if self.library == 'cmlib':
-                    if resname == 'GLY' or resname == 'ALA':
-                        residue = struc.copy()
-                        residue.filter(f'chain {chain} and resid {resid}', _logger=False)
-                    else:
-                        if self.forcefield == 'charmm36':
-                            if resname == 'HSD':
-                                residue = self.read_cmlib('HID')
-                            elif resname == 'HSE':
-                                residue = self.read_cmlib('HIE')
-                            elif resname == 'HSP':
-                                residue = self.read_cmlib('HIP')
+                # Keep original rotamer
+                residue = struc.copy()
+                residue.filter(f'chain {chain} and resid {resid}', _logger=False)
+                if resname != 'GLY' and resname != 'ALA':
+                    if self.library == 'cmlib':
+                        rotamers = self.read_db(resname=resname)
+                    elif self.library == 'dunbrack':
+                        # Check if the position is at the N-or C-terminus of the protein
+                        if f'{chain}_{resid}' in termini_positions:
+                                self.library = 'cmlib'
+                                rotamers = self.read_db(resname=resname)
+                                self.library = 'dunbrack'
                         else:
-                            residue = self.read_cmlib(resname)
-                        native_residue = struc.copy()
-                        # Take care of additional atoms at N-and C-terminus
-                        if N_terminus:
-                            native_residue.filter(f'chain {chain} and resid {resid} and not (name H2 or name H3)', _logger=False)
-                        elif C_terminus:
-                            native_residue.filter(f'chain {chain} and resid {resid} and not name OXT', _logger=False)
-                        else:
-                            native_residue.filter(f'chain {chain} and resid {resid}', _logger=False)
-                        native_conf = np.expand_dims(native_residue.get('coords', sel=f'chain {chain} and resid {resid}'), axis=2)
-                        residue.coords = np.dstack((residue.coords, native_conf))
-                        # Set rotamers backbone onto backbone of residue
-                        ref = f'chain {chain} and resid {resid} and (name N or name CA or name C)'
-                        residue.align(sel='name N or name CA or name C', refmol=struc, refsel=ref)
-
-                elif self.library == 'dunbrack':
-                    # Keep original rotamer
-                    residue = struc.copy()
-                    residue.filter(f'chain {chain} and resid {resid}', _logger=False)
-                    if resname != 'GLY' and resname != 'ALA':
-                        if not N_terminus:
                             phi_angle = struc.getDihedral([int(struc.get('index', sel=f'chain {chain} and resid {str(int(resid)-1)} and name C')),
                                                            int(struc.get('index', sel=f'chain {chain} and resid {resid} and name N')),
                                                            int(struc.get('index', sel=f'chain {chain} and resid {resid} and name CA')),
                                                            int(struc.get('index', sel=f'chain {chain} and resid {resid} and name C'))
                                                            ]) * (180/np.pi) + 180
-                        if not C_terminus:
+
                             psi_angle = struc.getDihedral([int(struc.get('index', sel=f'chain {chain} and resid {resid} and name N')),
                                                            int(struc.get('index', sel=f'chain {chain} and resid {resid} and name CA')),
                                                            int(struc.get('index', sel=f'chain {chain} and resid {resid} and name C')),
                                                            int(struc.get('index', sel=f'chain {chain} and resid {str(int(resid)+1)} and name N'))
                                                            ]) * (180/np.pi) + 180
 
-                        # Read histidine rotamers for different HIS protonation states
-                        if resname in ['HID', 'HIE', 'HIP', 'HSD', 'HSE', 'HSP']:
-                            _resname = 'HIS'
-                        else:
-                            _resname = resname
+                            # Read histidine rotamers for different HIS protonation states
+                            if resname in ['HID', 'HIE', 'HIP', 'HSD', 'HSE', 'HSP']:
+                                _resname = 'HIS'
+                            else:
+                                _resname = resname
 
-                        rotamers = self.read_dunbrack(resname=_resname,
-                                                      phi_angle=phi_angle,
-                                                      psi_angle=psi_angle,
-                                                      N_terminus=N_terminus,
-                                                      C_terminus=C_terminus,
-                                                      prob_cutoff=dunbrack_filter_thresh)
+                            rotamers = self.read_db(resname=_resname,
+                                                    phi_angle=phi_angle,
+                                                    psi_angle=psi_angle,
+                                                    prob_cutoff=dunbrack_filter_thresh)
 
-                        chi_angles = self.expand_dunbrack(rotamers=rotamers,
-                                                          expand=expand)
+                            rotamers = self.expand_dunbrack(rotamers=rotamers,
+                                                            expand=expand)
 
-                        # Keep original rotamer
-                        current_rot = residue.copy()
-                        # Break proline rings, since no dihedral setting possible
-                        if resname == 'PRO':
-                            current_rot.deleteBonds(sel='name N or name CD', inter=False)
-                        bonds = current_rot.bonds
-                        # Iterate over all rotamers
-                        for rotamer in chi_angles:
-                            for i, torsion in enumerate(_SIDECHAIN_TORSIONS[resname]):
-                                # select the four atoms forming the dihedral angle according to their atom names
-                                current_rot.setDihedral([int(current_rot.get('index', sel=f'name {torsion[0]}')),
-                                                         int(current_rot.get('index', sel=f'name {torsion[1]}')),
-                                                         int(current_rot.get('index', sel=f'name {torsion[2]}')),
-                                                         int(current_rot.get('index', sel=f'name {torsion[3]}'))],
-                                                        rotamer[i] * (np.pi/180), bonds=bonds)
-                            # append rotameric states as frames to residue
-                            residue.appendFrames(current_rot)
-                else:
-                    logger.error(f'Library: {self.library} not a valid option. Try cmlib or dunbrack.')
-                    raise ValueError(f'Library: {self.library} not a valid option. Try cmlib or dunbrack.')
+                    else:
+                        logger.error(f'Library: {self.library} not implemented.')
+                        raise ValueError(f'Library: {self.library} not implemented.')
+
+                    # Keep original rotamer
+                    current_rot = residue.copy()
+                    # Break proline rings, since no dihedral setting possible
+                    if resname == 'PRO':
+                        current_rot.deleteBonds(sel='name N or name CD', inter=False)
+                    bonds = current_rot.bonds
+                    # Iterate over all rotamers
+                    for rotamer in rotamers:
+                        for i, torsion in enumerate(_SIDECHAIN_TORSIONS[resname]):
+                            # select the four atoms forming the dihedral angle according to their atom names
+                            current_rot.setDihedral([int(current_rot.get('index', sel=f'name {torsion[0]}')),
+                                                     int(current_rot.get('index', sel=f'name {torsion[1]}')),
+                                                     int(current_rot.get('index', sel=f'name {torsion[2]}')),
+                                                     int(current_rot.get('index', sel=f'name {torsion[3]}'))],
+                                                    rotamer[i] * (np.pi/180), bonds=bonds)
+                        # append rotameric states as frames to residue
+                        residue.appendFrames(current_rot)
 
                 nrots = residue.coords.shape[-1]
 
