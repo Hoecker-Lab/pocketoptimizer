@@ -48,7 +48,7 @@ def calculate_energy(ids: Tuple[int], structure: Molecule, ffev: FFEvaluate, res
     structure.set('coords', res_a_coords[:, :, ids[0]], f'chain {chain_a} and resid {resid_a}')
     structure.set('coords', res_b_coords[:, :, ids[1]], f'chain {chain_b} and resid {resid_b}')
     energies = ffev.calculateEnergies(structure.coords)
-    return energies['vdw'], energies['elec']
+    return energies['vdw'], energies['elec'] * 0.01
 
 
 def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, Union[str, List[str]]]],

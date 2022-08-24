@@ -85,7 +85,7 @@ def minimize_structure(structure_path: str, forcefield: str, output_pdb: str, cu
         force.addPerParticleParameter("y0")
         force.addPerParticleParameter("z0")
         for i, atom_crd in enumerate(inpcrd.positions):
-            if structure.name[i] in _BB_ATOMS and not structure.segid[i] == 'L':
+            if structure.name[i] in _BB_ATOMS:
                 force.addParticle(i, atom_crd.value_in_unit(unit.nanometers))
         system.addForce(force)
 

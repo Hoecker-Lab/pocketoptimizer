@@ -1032,8 +1032,7 @@ class DesignPipeline:
         logger.info('Initialize a new DesignPipeline.')
 
 
-# CLI
-if __name__ == '__main__':
+def main():
     import sys
     import argparse
     sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -1130,3 +1129,7 @@ if __name__ == '__main__':
                             vdw_filter_thresh=args.vdw_thresh[0], max_poses=args.max_poses[0])
     design.calculate_energies(scoring=args.scoring[0])
     design.design(num_solutions=args.num_solutions[0], ligand_scaling=args.lig_scaling[0])
+
+
+if __name__ == '__main__':
+    main()

@@ -221,6 +221,7 @@ class PymolReporter:
                 mutable += '(chain ' + chain + ' and resi ' + index + ')'
         commands = ['load ' + os.path.abspath(scaffold_pdb) + ', WT_scaffold',
                     'load %s, WT_ligand' % wt_ligand,
+                    'show stick, WT_ligand',
                     'hide cartoon, WT_ligand']
 
         for sol_i in range(self._solutions.get_solution_number()):

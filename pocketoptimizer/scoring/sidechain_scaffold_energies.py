@@ -40,7 +40,7 @@ def calculate_energy(id: int, structure: Molecule, ffev: FFEvaluate, res_coords:
     # Set coordinates to current rotamer
     structure.set('coords', res_coords[:, :, id], f'chain {chain} and resid {resid}')
     energies = ffev.calculateEnergies(structure.coords)
-    return energies['vdw'], energies['elec']
+    return energies['vdw'], energies['elec'] * 0.01
 
 
 def calculate_scaffold(work_dir: str, rotamer_path: str, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str, ncpus: int = 1) -> None or NoReturn:

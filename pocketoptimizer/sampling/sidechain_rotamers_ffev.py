@@ -58,7 +58,7 @@ class FFRotamerSampler:
         self.rot_path = rot_path
         self.tmp = tmp
 
-    def read_db(self, resname: str, phi_angle: float = 0.0, psi_angle: float = 0.0, prob_cutoff: float = -1) -> List[Dict[str, float] or int]:
+    def read_db(self, resname: str, phi_angle: float = 0.0, psi_angle: float = 0.0, prob_cutoff: float = -1) -> Dict[str, List[Tuple[float]]]:
         """
         Reading function for rotamer libraries.
 
@@ -77,11 +77,8 @@ class FFRotamerSampler:
 
         Returns
         -------
-        Dunbrack:
-            List of dictionaries for rotamers containing chi angles and standard deviations
-            for rotamers belonging to a respective phi/psi angle combination
-        CMLib:
-            List of chi angles
+            Dictionary for rotamers containing chi angles and standard deviations
+            for rotamers belonging to a respective phi/psi angle combination if available
         """
         import sqlite3 as sl
         import pocketoptimizer.path as po_path
@@ -112,21 +109,22 @@ class FFRotamerSampler:
             else:
                 return res
 
-        rotamers = []
+        rotamers = {'chi': [],
+                    'std': []}
         # Connect to rotamer library
         if self.library == 'dunbrack':
-            con_dunbrack = sl.connect(os.path.join(po_path.path(), '..', 'rotamers', 'dunbrack.db'))
+            con_dunbrack = sl.connect(os.path.join(po_path.path(rotamers=True), 'dunbrack.db'))
             with con_dunbrack:
                 data = con_dunbrack.execute(f'SELECT * FROM {resname} WHERE phi = {roundup(phi_angle)} AND psi = {roundup(psi_angle)} AND prob >= {prob_cutoff}')
             for rotamer in data:
-                rotamers.append({'chi': rotamer[4:8],
-                                 'std': rotamer[8:]})
+                rotamers['chi'].append(tuple(rotamer[4:8]))
+                rotamers['std'].append(tuple(rotamer[8:]))
         elif self.library == 'cmlib':
-            con_cmlib = sl.connect(os.path.join(po_path.path(), '..', 'rotamers', 'cmlib.db'))
+            con_cmlib = sl.connect(os.path.join(po_path.path(rotamers=True), 'cmlib.db'))
             with con_cmlib:
                 data = con_cmlib.execute(f'SELECT * FROM {resname}')
             for rotamer in data:
-                rotamers.append(rotamer[1:])
+                rotamers['chi'].append(tuple(rotamer[1:]))
         else:
             logger.error(f'Could not read from library: {self.library}.')
             raise ValueError(f'Could not read from library: {self.library}.')
@@ -135,7 +133,7 @@ class FFRotamerSampler:
 
     def expand_dunbrack(self, rotamers: List[Dict[str, float or List[int or float]]], expand: List[str] = ['chi1', 'chi2']) -> List[Tuple[float]]:
         """
-        Expands defined chi-angles by +/- 1 Std
+        Expands defined chi-angles by +/- 2 Std
 
         Parameters
         ----------
@@ -154,15 +152,17 @@ class FFRotamerSampler:
         # every chi-angle of an amino acid with its possible values
         rotamer_chi_angles = []
 
-        for i, rotamer in enumerate(rotamers):
+        for i, rotamer in enumerate(rotamers['chi']):
             rotamer_chi_angles.append([])
-            for j, chi_angle in enumerate(rotamer['chi']):
+            for j, chi_angle in enumerate(rotamer):
                 if f'chi{str(j+1)}' in expand:
-                    rotamer_chi_angles[i].append((chi_angle - rotamer['std'][j], chi_angle, chi_angle + rotamer['std'][j]))
+                    rotamer_chi_angles[i].append([chi_angle - 2 * rotamers['std'][i][j],
+                                                  chi_angle,
+                                                  chi_angle + 2 * rotamers['std'][i][j]])
                 else:
-                    rotamer_chi_angles[i].append((chi_angle,))
+                    rotamer_chi_angles[i].append([chi_angle])
 
-        rotamers = []
+        rotamers = {'chi': []}
 
         for possible_rotamer in rotamer_chi_angles:
             for chi_1 in possible_rotamer[0]:
@@ -170,8 +170,8 @@ class FFRotamerSampler:
                     for chi_3 in possible_rotamer[2]:
                         for chi_4 in possible_rotamer[3]:
                             rotamer = (chi_1, chi_2, chi_3, chi_4)
-                            if not rotamer in rotamers:
-                                rotamers.append(rotamer)
+                            if not rotamer in rotamers['chi']:
+                                rotamers['chi'].append(rotamer)
         return rotamers
 
     def calculate_vdw(self, rot_id: int, structure: Molecule, ffev: FFEvaluate,
@@ -353,7 +353,7 @@ class FFRotamerSampler:
                         current_rot.deleteBonds(sel='name N or name CD', inter=False)
                     bonds = current_rot.bonds
                     # Iterate over all rotamers
-                    for rotamer in rotamers:
+                    for rotamer in rotamers['chi']:
                         for i, torsion in enumerate(_SIDECHAIN_TORSIONS[resname]):
                             # select the four atoms forming the dihedral angle according to their atom names
                             current_rot.setDihedral([int(current_rot.get('index', sel=f'name {torsion[0]}')),

@@ -99,7 +99,15 @@ class PeptideSampler(FFRotamerSampler):
         structure.set('coords', structure.coords[:, :, conf_id])
         energies = ffev.calculateEnergies(structure.coords[:, :, conf_id])
         structure.write(os.path.join(self.tmp, f'ligand_conf_{conf_id}.pdb'))
-        return energies['total']
+        total_nrg = 0
+        for term, nrg in energies.items():
+            if term != 'total':
+                if term == 'elec':
+                    total_nrg += nrg * 0.01
+                else:
+                    total_nrg += nrg
+
+        return total_nrg
 
     def conformer_sampling(self, nrg_thresh: float = 100.0, dunbrack_filter_thresh: float = -1,
                            expand: List[str] = [], ncpus: int = 1, _keep_tmp: bool = False) -> NoReturn:
@@ -204,7 +212,7 @@ class PeptideSampler(FFRotamerSampler):
                     current_rot.deleteBonds(sel='name N or name CD', inter=False)
                 bonds = current_rot.bonds
                 # Iterate over all rotamers
-                for rotamer in rotamers:
+                for rotamer in rotamers['chi']:
                     for i, torsion in enumerate(_SIDECHAIN_TORSIONS[resname]):
                         # select the four atoms forming the dihedral angle according to their atom names
                         current_rot.setDihedral([int(current_rot.get('index', sel=f'name {torsion[0]}')),

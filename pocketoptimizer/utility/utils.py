@@ -355,8 +355,7 @@ def write_energies(outpath: str, energies: np.ndarray, energy_terms: List[str], 
 
 def calculate_chunks(nposes: int, ncpus: int) -> int:
     """
-    Calculates the size of the chunks for multiprocessing by dividing the number of
-    poses by the number of available CPUs times 4
+    Calculates chunksize for multiprocessing
 
     Parameters
     ----------

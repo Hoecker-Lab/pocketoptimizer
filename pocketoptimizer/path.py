@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def path(data_dir: str = None, bin_file: str = None) -> str:
+def path(data_dir: str = None, bin_file: str = None, rotamers: bool = False) -> str:
     """
     Returns the path name to the PocketOptimizer root directory or
     a specified data directory or bin file.
@@ -16,7 +16,8 @@ def path(data_dir: str = None, bin_file: str = None) -> str:
         Name of a directory contained in pocketoptimizer/data.
     bin_file: str
         Name of a file contained in pocketoptimizer/bin.
-
+    rotamers: bool
+        Whether to return the rotamer directory
     Returns
     -------
     path: str
@@ -38,5 +39,7 @@ def path(data_dir: str = None, bin_file: str = None) -> str:
         else:
             logger.error('File not found.')
             raise FileNotFoundError('File not found.')
+    elif rotamers:
+        return os.path.join(os.path.split(po_path)[0], 'rotamers')
     else:
         return po_path

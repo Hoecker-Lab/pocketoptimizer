@@ -102,7 +102,7 @@ _SIDECHAIN_TORSIONS_CHARMM = {
     'VAL':
         [["N", "CA", "CB", "CG1"]]}
 
-_BB_ATOMS = ('N', 'CA', 'C', 'O', 'H', 'HN', 'HA', '1H', '2H', '3H', 'OXT')
+_BB_ATOMS = ('N', 'CA', 'C', 'O', 'H', 'HN', 'HA', 'HA2', '1H', '2H', '3H', 'OXT')
 
 # VMD selection for all backbone atoms
 backbone_atoms = 'name ' + ' or name '.join(_BB_ATOMS)

@@ -75,7 +75,7 @@ class FFScorer:
         # set coordinates to current ligand pose
         struc.set('coords', pose_coords[..., poses[0]], 'segid L')
         energies = ffev.calculateEnergies(struc.coords)
-        nrg = energies['vdw'], energies['elec']
+        nrg = energies['vdw'], energies['elec'] * 0.01
         return nrg
 
     def run_self_nrg(self, pose_coords: np.ndarray, mutations: List[Dict[str, Union[str, List[str]]]], nposes: int, outpath: str, ncpus: int = 1) -> NoReturn:
