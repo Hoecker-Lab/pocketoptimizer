@@ -1,0 +1,15 @@
+name: pocketoptimizer
+channels:
+  - conda-forge
+  - defaults
+  - acellera
+  - bioconda
+dependencies:
+  - htmd
+  - smina
+  - jupyterlab
+  - weblogo
+  - ffevaluation
+  - pip
+  - pip:
+    - pocketoptimizer

@@ -132,15 +132,14 @@ def calculate_design_solutions(solver_bin: str, temp_dir: str, out_path: str, nu
         Path to file containing pose Ids to exclude
     keep_tmp: bool
         Whether the temporary directory should be removed or kept in the end [default: False]
-
     """
     logger.info('Calculating Solutions.')
     index_mapper = IndexMapper.from_index_file(os.path.join(out_path, 'index.dat'))
 
     if index_mapper.get_conf_count_for_pos('ligand') < num_solutions:
         num_solutions = index_mapper.get_conf_count_for_pos('ligand')
-        logger.warning(f'Requested number of solutions higher than number of possible ligand poses. '
-              f'Only {num_solutions} can be calculated')
+        logger.warning(f'Requested number of solutions higher than number of ligand poses. '
+              f'Only {num_solutions} solution can be calculated.')
 
     ligand_index = index_mapper.get_pos_index('ligand')
 

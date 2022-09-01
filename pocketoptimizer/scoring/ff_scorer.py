@@ -78,7 +78,8 @@ class FFScorer:
         nrg = energies['vdw'], energies['elec'] * 0.01
         return nrg
 
-    def run_self_nrg(self, pose_coords: np.ndarray, mutations: List[Dict[str, Union[str, List[str]]]], nposes: int, outpath: str, ncpus: int = 1) -> NoReturn:
+    def run_self_nrg(self, pose_coords: np.ndarray, mutations: List[Dict[str, Union[str, List[str]]]], nposes: int,
+                     outpath: str, ncpus: int = 1) -> NoReturn:
         """
         Calculates self energies
 
@@ -251,7 +252,8 @@ class FFScorer:
 
         else:
             logger.info(f'Ligand-Scaffold-Interaction-Energies not computed yet.')
-            self.run_self_nrg(pose_coords=pose_coords, mutations=mutations, ncpus=ncpus, nposes=nposes, outpath=self.lig_scaff)
+            self.run_self_nrg(pose_coords=pose_coords, mutations=mutations, nposes=nposes,
+                              outpath=self.lig_scaff, ncpus=ncpus)
 
         self.run_pair_nrg(pose_coords=pose_coords, mutations=mutations, nposes=nposes, ncpus=ncpus)
         logger.info('Ligand scoring was successful.')

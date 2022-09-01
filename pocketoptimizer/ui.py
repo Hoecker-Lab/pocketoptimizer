@@ -155,7 +155,7 @@ class DesignPipeline:
         self.ligand_poses = ''
         self.mutations = []
         self.scoring = {
-            'smina': ['vina', 'vinardo', 'dkoes_scoring', 'ad4_scoring'],
+            'smina': ['vina', 'vinardo', 'ad4_scoring'],
             'ff': ['amber_ff14SB', 'charmm36'],
         }
         self.scorer = ''
@@ -543,7 +543,7 @@ class DesignPipeline:
 
         if not self.mutations:
             logger.error('No mutations have been defined. Please define at least one mutation.')
-            raise AttributeError('No mutations have been defined. Please define at least one mutation.')
+            raise ValueError('No mutations have been defined. Please define at least one mutation.')
 
         logger.info('Start building mutated protein scaffold variants.')
 
@@ -592,7 +592,7 @@ class DesignPipeline:
 
         if not self.mutations:
             logger.error('No mutations have been defined. Please define at least one mutation.')
-            raise AttributeError('No mutations have been defined. Please define at least one mutation.')
+            raise ValueError('No mutations have been defined. Please define at least one mutation.')
         # set rotamer path for energy calculations
         self._set_rot_lib(library)
 
@@ -672,19 +672,19 @@ class DesignPipeline:
 
         The energy calculation procedure consists of three parts.
         1. Sidechain vs. Scaffold energies
-        2. Sidechain pair energies
-        3. Ligand vs. scaffold/sidechain energies
+        2. Sidechain vs.Sidechain
+        3. Ligand vs. Scaffold
+        4. Ligand vs. Sidechain
 
-        The former two are related to force field computations while the latter is done using a
+        The former two are related to force field computations while the latter two can be carried out using a
         specific scoring function.
-        The output energies/scores will be written into .csv files accessible in the
-        /work_dir/energies/ directory.
+        Output energy scores will be written into .csv files under /work_dir/energies/ directory.
 
         Parameters
         ----------
         scoring: str
             Method that will be used for scoring [default: 'vina'].
-            The following methods are available: vina, vinardo, dkoes_scoring, ad4_scoring, charmm36, amber_ff14SB, nnscore, rfscore, plecscore, cnnscore
+            The following methods are available: vina, vinardo, ad4_scoring, charmm36, amber_ff14SB, nnscore, rfscore, plecscore, cnnscore
         """
         from pocketoptimizer.scoring import sidechain_scaffold_energies, sidechain_pair_energies, smina_scorer, ff_scorer
         os.chdir(self.work_dir)
@@ -693,16 +693,22 @@ class DesignPipeline:
 
         if not self.mutations:
             logger.error('No mutations have been defined. Please define at least one mutation.')
-            raise AttributeError('No mutations have been defined. Please define at least one mutation.')
+            raise ValueError('No mutations have been defined. Please define at least one mutation.')
         if not self.rotamer_path:
             logger.error('No rotamer library has been defined. Sample side chain rotamers first.')
-            raise AttributeError('No rotamer library has been defined. Sample side chain rotamers first.')
+            raise ValueError('No rotamer library has been defined. Sample side chain rotamers first.')
 
-        if scoring in self.scoring['smina'] or scoring in self.scoring['ff']:
+        if scoring in self.scoring['smina']:
+            if not self.peptide:
+                self.scorer = scoring
+            else:
+                logger.warning(f'Scoring function: {scoring} is not optimized for protein-peptide scoring.')
+                raise RuntimeWarning(f'Scoring function: {scoring} is not optimized for protein-peptide scoring.')
+        elif scoring in self.scoring['ff']:
             self.scorer = scoring
         else:
-            logger.error('Scorer not implemented.')
-            raise NotImplementedError('Scorer not implemented.')
+            logger.error(f'Scorer: {scoring} is not implemented.')
+            raise NotImplementedError(f'Scorer: {scoring} is not implemented.')
 
         logger.info('Start energy calculations.')
         logger.info(f'Using {self.ncpus} CPUs for multiprocessing.')
@@ -736,9 +742,7 @@ class DesignPipeline:
                 forcefield=self.forcefield,
                 rotamer_path=self.rotamer_path,
                 smina_path=self.settings.SMINA_BIN,
-                peptide=self.peptide,
                 tmp_dir=self.settings.TMP_DIR,
-                obabel=self.settings.OBABEL_BIN,
             )
 
             vs.run_smina_scorer(
@@ -796,13 +800,16 @@ class DesignPipeline:
 
         if not self.mutations:
             logger.error('No mutations have been defined. Please define at least one mutation.')
-            raise AttributeError('No mutations have been defined. Please define at least one mutation.')
+            raise ValueError('No mutations have been defined. Please define at least one mutation.')
         if not self.rotamer_path:
             logger.error('No rotamer library has been defined. Sample side chain rotamers first.')
-            raise AttributeError('No rotamer library has been defined. Sample side chain rotamers first.')
+            raise ValueError('No rotamer library has been defined. Sample side chain rotamers first.')
         if not self.scorer:
             logger.error('No scoring method has been defined. Calculate energies first.')
-            raise AttributeError('No scoring method has been defined. Calculate energies first.')
+            raise ValueError('No scoring method has been defined. Calculate energies first.')
+        if num_solutions < 1:
+            logger.error('Need at least one solution.')
+            raise ValueError('Need at least one solution.')
 
         mutations_copy = copy.deepcopy(self.mutations)
 
@@ -845,14 +852,12 @@ class DesignPipeline:
         sw.write_sontag(solver_path)
 
         os.makedirs(os.path.join(solver_path, 'solutions'), exist_ok=True)
-        sontag_solver.calculate_design_solutions(
-            solver_bin=self.settings.SOLVER_BIN,
-            temp_dir=self.settings.TMP_DIR,
-            out_path=solver_path,
-            num_solutions=num_solutions,
-            penalty_energy=1e10,
-            exclude=None,
-        )
+        sontag_solver.calculate_design_solutions(solver_bin=self.settings.SOLVER_BIN,
+                                                 temp_dir=self.settings.TMP_DIR,
+                                                 out_path=solver_path,
+                                                 num_solutions=num_solutions,
+                                                 penalty_energy=1e10,
+                                                 exclude=None)
 
         solution_file = os.path.join(solver_path, 'solutions', 'all_solutions.txt')
         index_file = os.path.join(solver_path, 'index.dat')
@@ -878,7 +883,7 @@ class DesignPipeline:
         design_outdir = os.path.join(self.work_dir, 'designs', design_full_name)
         os.makedirs(design_outdir, exist_ok=True)
 
-        logger.info('Write txt report.')
+        logger.info('Write text report.')
         txt_reporter = TxtReporter(solution, sidechain_positions, design_outdir)
         txt_reporter.create_reports()
         logger.info('Wrote solution report text file(s).')
@@ -886,30 +891,19 @@ class DesignPipeline:
         logger.info('Wrote summary text file.')
 
         logger.info('Write html report.')
-        html_reporter = HtmlReporter(design_solutions=solution, sidechain_positions=sidechain_positions,
+        html_reporter = HtmlReporter(design_solutions=solution,
+                                     sidechain_positions=sidechain_positions,
                                      output_dir=design_outdir)
         html_reporter.create_reports()
         logger.info('Wrote solution report html file(s).')
-        plot = True
-        if solution.get_solution_number() < 1:
-            plot = False
-        if solution.get_solution_number() < 2:
-            logo = False
-        else:
-            for position, residue in sidechain_positions.items():
-                if solution.is_mutable(position):
-                    logo = True
-                    break
-                else:
-                    logo = False
-        html_reporter.create_summary(plot, logo)
+        html_reporter.create_summary()
         logger.info('Wrote summary html file.')
 
         logger.info('Creating design structure files.')
 
         logger.info('Create Structures.')
         solution.create_design_structures(design_path=design_outdir)
-        logger.info('Creating pymol scripts.')
+        logger.info('Creating PyMol scripts.')
 
         pymol_reporter = PymolReporter(solution, sidechain_positions, design_outdir)
         pymol_reporter.create_pymol_scripts(
@@ -917,9 +911,7 @@ class DesignPipeline:
             wt_ligand=self.ligand_protonated
         )
 
-        logger.info('All solutions are processed.')
-
-        logger.info(f'{num_solutions} best design solution(s) for design with forcefield: {self.forcefield}, scoring method: {self.scorer} and ligand scaling: {ligand_scaling} identified.')
+        logger.info(f'{solution.get_solution_number()} best design solution(s) for design with forcefield: {self.forcefield}, scoring method: {self.scorer} and ligand scaling: {ligand_scaling} identified.')
 
     def design_multi(self, designs: List[Dict[str, Union[str, int]]]) -> NoReturn:
         """
@@ -1055,17 +1047,17 @@ def main():
     parser.add_argument('--peptide_mutations', type=str, nargs='*', default=None, help='Peptide mutations (A:1:ALA)', required=False)
     parser.add_argument('--flex_peptide_res', type=str, nargs='*', default=None, help='Peptide residues to sample flexiblity', required=False)
     parser.add_argument('--vdw_thresh', type=float, nargs=1, default=[100.0], help='VdW-energy threshold for rotamer and ligand pose sampling (kcal/mol)', required=False)
-    parser.add_argument('--rot_lib', type=str, nargs=1, default=['dunbrack'], help='Rotamer library, options are: dunbrack or cmlib', required=False)
+    parser.add_argument('--library', type=str, nargs=1, default=['dunbrack'], help='Rotamer library, options are: dunbrack or cmlib', required=False)
     parser.add_argument('--dunbrack_filter_thresh', type=float, nargs=1, default=[0.01], help='Filter threshold for the dunbrack rotamer library (value between 0 and 1)', required=False)
     parser.add_argument('--nconfs', type=int, nargs=1, default=[50], help='Number of ligand conformers to sample', required=False)
-    parser.add_argument('--lig_rot', '--lig_rot', type=float, nargs=1, default=[20], help='Maximum ligand rotation', required=False)
-    parser.add_argument('--lig_rot_steps', '--lig_rot_steps', type=float, nargs=1, default=[20], help='Ligand rotation steps', required=False)
-    parser.add_argument('--lig_trans', '--lig_trans', type=float, nargs=1, default=[1], help='Maximum ligand translation', required=False)
-    parser.add_argument('--lig_trans_steps', '--lig_trans_steps', type=float, nargs=1, default=[0.5], help='Ligand translation steps', required=False)
+    parser.add_argument('--rot', '--rot', type=float, nargs=1, default=[20], help='Maximum ligand rotation', required=False)
+    parser.add_argument('--rot_steps', '--rot_steps', type=float, nargs=1, default=[20], help='Ligand rotation steps', required=False)
+    parser.add_argument('--trans', '--trans', type=float, nargs=1, default=[1], help='Maximum ligand translation', required=False)
+    parser.add_argument('--trans_steps', '--trans_steps', type=float, nargs=1, default=[0.5], help='Ligand translation steps', required=False)
     parser.add_argument('--max_poses', '--max_poses', type=int, nargs=1, default=[10000], help='Maximum number of ligand poses to sample', required=False)
     parser.add_argument('--sampling_pocket', type=str, nargs=1, default=['ALA'], help='Sampling pocket for rotamer and ligand pose sampling', required=False)
-    parser.add_argument('--scoring', type=str, nargs=1, default=['vina'], help='Scoring function, options are: vina, vinardo, dkoes_scoring, ad4_scoring, force_field', required=False)
-    parser.add_argument('--lig_scaling', type=int, nargs=1, default=[1], help='Ligand scaling factor', required=False)
+    parser.add_argument('--scoring', type=str, nargs=1, default=['vina'], help='Scoring function, options are: vina, vinardo, ad4_scoring, force_field', required=False)
+    parser.add_argument('--scaling', type=int, nargs=1, default=[1], help='Ligand scaling factor', required=False)
     parser.add_argument('--num_solutions', type=int, nargs=1, default=[10], help='Number of design solutions to calculate', required=False)
     parser.add_argument('--ncpus', type=int, nargs=1, default=[1], help='Number of CPUs for multiprocesing', required=False)
     parser.add_argument('--cuda', type=int, nargs=1, default=[0], help='Enabling cuda for GPU based minimization, default: No cuda', required=False)
@@ -1112,7 +1104,7 @@ def main():
         design = pocketoptimizer.DesignPipeline(work_dir=working_dir, forcefield=args.forcefield[0], ph=args.ph[0], ncpus=args.ncpus[0], peptide=True)
         design.prepare_protein(protein_structure=args.receptor[0], keep_chains=args.keep_chains, backbone_restraint=not bool(args.min_bb[0]),
                                discard_mols=discard_mols, peptide_structure=args.ligand[0], peptide_mutations=peptide_mutations, cuda=bool(args.cuda[0]))
-        design.prepare_peptide_conformers(positions=[resid for resid in args.flex_peptide_res], library=args.rot_lib[0],
+        design.prepare_peptide_conformers(positions=[resid for resid in args.flex_peptide_res], library=args.library[0],
                                           nrg_thresh=args.vdw_thresh[0], dunbrack_filter_thresh=args.dunbrack_filter_thresh[0])
 
     else:
@@ -1124,11 +1116,11 @@ def main():
 
     design.set_mutations(mutations)
     design.prepare_mutants(sampling_pocket=args.sampling_pocket[0])
-    design.sample_sidechain_rotamers(library=args.rot_lib[0], vdw_filter_thresh=args.vdw_thresh[0], dunbrack_filter_thresh=args.dunbrack_filter_thresh[0])
-    design.sample_lig_poses(method='grid', grid={'trans': [args.lig_trans[0], args.lig_trans_steps[0]], 'rot': [args.lig_rot[0], args.lig_rot_steps[0]]} ,
+    design.sample_sidechain_rotamers(library=args.library[0], vdw_filter_thresh=args.vdw_thresh[0], dunbrack_filter_thresh=args.dunbrack_filter_thresh[0])
+    design.sample_lig_poses(method='grid', grid={'trans': [args.trans[0], args.trans_steps[0]], 'rot': [args.rot[0], args.rot_steps[0]]} ,
                             vdw_filter_thresh=args.vdw_thresh[0], max_poses=args.max_poses[0])
     design.calculate_energies(scoring=args.scoring[0])
-    design.design(num_solutions=args.num_solutions[0], ligand_scaling=args.lig_scaling[0])
+    design.design(num_solutions=args.num_solutions[0], ligand_scaling=args.scaling[0])
 
 
 if __name__ == '__main__':

@@ -26,8 +26,7 @@ class SminaScorer:
     # But since it does not make any difference in scores it has been removed
 
     def __init__(self, ligand: str, ligand_poses: str, scaffold: str, project_path: str, scoring_method: str,
-                 forcefield: str, rotamer_path: str, smina_path: str, peptide: bool = False, tmp_dir: str = '/tmp/',
-                 obabel: str = 'obabel'):
+                 forcefield: str, rotamer_path: str, smina_path: str, tmp_dir: str = '/tmp/'):
         """
         Initializes a :class: SminaScorer object
 
@@ -51,12 +50,8 @@ class SminaScorer:
             Path to sampled side chain rotamers
         smina_path: str
             Path to smina binary
-        peptide: bool
-            Whether ligand is a peptide
         tmp_dir: str
             path to temporary directory [default: '/tmp/']
-        obabel_path: str
-            Path to obabel binary [default: 'obabel']
         """
         self.ligand = ligand
         self.ligand_poses = ligand_poses
@@ -84,13 +79,6 @@ class SminaScorer:
                 'non_dir_h_bond': -0.6,
                 'num_tors_div': 0.0
             },
-            'dkoes_scoring': {
-                'vdw': 0.0099,
-                'non_dir_h_bond': -0.153055,
-                'ad4_solvation': 0.048934,
-                'num_tors_sqr': 0.317267,
-                'constant_term': -2.46902
-            },
             'ad4_scoring': {
                 'vdw': 0.156,
                 'non_dir_h_bond_lj': -0.0974,
@@ -101,15 +89,13 @@ class SminaScorer:
         }
         if self.scoring_method not in self.smina_weights.keys():
             logger.error(f'{self.scoring_method} is not a valid scoring method. Valid methods are:'
-                         f' vina, vinardo, dkoes_scoring, ad4_scoring.')
+                         f' vina, vinardo, ad4_scoring.')
             raise ValueError(f'{self.scoring_method} is not a valid scoring method. Valid methods are:'
-                             f' vina, vinardo, dkoes_scoring, ad4_scoring.')
+                             f' vina, vinardo, ad4_scoring.')
         self.forcefield = forcefield
         self.rotamer_path = rotamer_path
         self.smina = smina_path
-        self.peptide = peptide
         self.tmp_dir = tmp_dir
-        self.obabel = obabel
 
     def parse_smina(self, smina_output: str, nposes: int) -> np.ndarray:
         """
@@ -220,24 +206,11 @@ class SminaScorer:
             Name of combined output file
         """
         # Just parse the mol2 files together
-        if not self.peptide:
-            with open(outfile, 'w') as combined_file:
-                for pose_id in range(poses):
-                    with open(f'ligand_pose_{pose_id}.mol2', 'r') as pose_file:
-                        for line in pose_file:
-                            combined_file.write(line)
-        # Conversion to mol2 needed in order to score multiple peptides with smina
-        else:
-            pose_files = []
+        with open(outfile, 'w') as combined_file:
             for pose_id in range(poses):
-                pose_files.append(os.path.join(self.tmp_dir, f'ligand_pose_{pose_id}.pdb'))
-
-            merge_command = [self.obabel, *pose_files, '-O', outfile]
-            process = subprocess.Popen(merge_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = process.communicate()
-            if process.returncode != 0:
-                logger.error(f'Obabel failed with the following exception: {stderr.decode("ascii")}')
-                raise RuntimeError(f'Obabel failed with the following error: {stderr.decode("ascii")}')
+                with open(f'ligand_pose_{pose_id}.mol2', 'r') as pose_file:
+                    for line in pose_file:
+                        combined_file.write(line)
 
     def score_smina(self, receptor: str, ligand: str, nposes: int, ncpus: int = 1) -> Dict[str, float]:
         """
@@ -317,15 +290,10 @@ class SminaScorer:
 
         nposes = ligand_poses.coords.shape[-1]
 
-        if not self.peptide:
-            ftype = 'mol2'
-        else:
-            ftype = 'pdb'
-
         # Create combined ligand pose file
         for pose in range(nposes):
             ligand.coords = ligand_poses.coords[:, :, pose].reshape(ligand_poses.coords.shape[0], 3, 1)
-            pose = f'ligand_pose_{pose}.{ftype}'
+            pose = f'ligand_pose_{pose}.mol2'
             ligand.write(pose)
         # Combine poses
         lig_outfile = os.path.join(self.tmp_dir, f'ligand_poses.mol2')
@@ -343,13 +311,15 @@ class SminaScorer:
             with tqdm(total=1, desc='Ligand/Scaffold') as pbar:
                 self_nrgs = self.score_smina(receptor=self.pocketless_scaffold, ligand=lig_outfile, nposes=nposes, ncpus=ncpus)
                 pbar.update()
-
             # Save data as csv
             write_energies(outpath=lig_scaffold_outfile,
                            energies=self_nrgs,
                            energy_terms=weights,
                            name_a='ligand_pose',
                            nconfs_a=nposes)
+
+        # Set the torsion weight factor to 0, in order not to count it for every pairwise interaction
+        self.smina_weights['ad4_scoring']['num_tors_add'] = 0.0
 
         # Score ligand against sidechains
         # Loop over all mutations/flexible residues

@@ -28,17 +28,16 @@ dependencies and versions required for PocketOptimizer. By typing:
 
   conda env create -f environment.yml
 
-
 Conda creates a separate PocketOptimizer environment.
+Alternatively, you can use the minimal environment:
 
-Tutorial
-========
+.. code-block:: bash
 
-The tutorial section will cover all necessary steps in order to prepare files for **PocketOptimizer** and will also
-show example cases to show how PocketOptimizer can work for you.
+  conda env create -f simple_env.yml
+
 
 Running PocketOptimizer
------------------------
+======================
 
 Since PocketOptimizer's rework, the framework is now accessed solely through Python 3.9.
 This means that it can be incorporated in your regular Python scripts or in an interactive fashion through Jupyter Notebooks.
@@ -66,6 +65,8 @@ or
 Before being able to use PocketOptimizer in Jupyter you need to install the kernel from inside the conda environment:
 
 .. code-block:: bash
+
+    conda activate pocketoptimizer
 
     python3 -m ipykernel install --user --name pocketoptimizer
 
@@ -100,32 +101,13 @@ Now place the following files inside the ``ligand`` and ``scaffold`` directory:
     ├── ligand
     │   ├── YOUR_LIGAND.mol2
     │   └── FORCE_FIELD
-    │       ├── ligand.mol2
-    │       └── params
-    │           └── ligand.mol2/ligand.frcmod or ligand.prm/ligand.rtf
+    │       └── ligand.mol2
+    │
     └── scaffold
         └── YOUR_PROTEIN.pdb
 
-
 * ``YOUR_LIGAND.mol2`` = starting ligand pose placed inside the binding pocket
 * ``YOUR_PROTEIN.pdb`` = protein structure used as scaffold
-
-If you have already a parametrized ligand structure, you can create a ``FORCE_FIELD`` sub-directory in the ligand directory named
-after the force field for which the ligand was parameterized (either: ``amber_ff14SB`` or ``charmm36``), and place the following file inside
-this directory:
-
-* ligand.mol2 = parameterized and protonated ligand structure placed inside the binding pocket
-
-Additionally, place the parameters inside a folder named ``params`` in the ``FORCE_FIELD`` sub-directory:
-
-* ligand.mol2/ligand.frcmod/.prm/.rtf = parameter file(s) for force field computations
-
-The names of the ligand files inside the ``FORCE_FIELD`` sub-directory are necessary, whereas the ``YOUR_PROTEIN.pdb`` and
-``YOUR_LIGAND.mol2`` files can be manually specified in the PocketOptimizer session.
-
-If you don't have a prepared and parameterized ligand, the next sections will
-explain how to obtain those files.
-
 
 1. Ligand Preparation
 ---------------------
@@ -191,16 +173,14 @@ the following lines:
     # Set the Path to your working directory which contains the scaffold and ligand folder
     # Set a pH value or use the default value of 7.2
     # Select a force field (either: charmm36 or amber_ff14SB)
-    # Select the number of CPUs
     design = po.DesignPipeline(work_dir='YOUR_PROJECT_PATH', ph=pH_VALUE, forcefield='YOUR_FORCEFIELD', ncpus=8)
 
 While you are initializing you can define a pH, used for protonating the side chains of the protein and also the ligand molecule.
-Additionally, PocketOptimizer has two force fields implemented, the AMBER ff14SB and the CHARMM 36 force field.
-These force fields contain not only parameters for all defined atom types
-but also the energy functions used to calculate the potential energy of the protein-ligand system. The energy functions mostly rely on
-harmonic potentials describing different bonded interactions, such as bond lengths or bond angles and Lennard-Jones or coulombic potentials
-describing different non-bonded interactions such as van-der-Waals (vdW) or electrostatic interactions. Besides you can define the number of
-CPUs used for all energy calculations.
+Additionally, PocketOptimizer has two force fields implemented, the AMBER ff14SB and the CHARMM36 force field.
+These force fields contain parameters for all defined atom types
+and also energy functions to calculate the potential energy of the protein-ligand system. The energy functions mostly rely on
+harmonic potentials describing different bonded and non-bonded interactions.
+Besides you can define the number of CPUs used for all energy calculations.
 
 It is recommended to use PocketOptimizer in combination with a Jupyter notebook,
 as it allows a more flexible and interactive use of the framework.
@@ -251,10 +231,6 @@ and suits your needs:
        └── params
            └── ligand.mol2/ligand.frcmod or ligand.prm/ligand.rtf
 
-Furthermore, you will find a copy of the prepared ligand structure inside the ``FORCE_FIELD`` sub-directory with sybyl atom types.
-
-**Warning**: If you don't follow this naming convention, PocketOptimizer will fail.
-
 **Hint**: Use relative paths for the scaffold and ligand structures,
 as you are inside the project directory during the entire design process.
 
@@ -301,14 +277,9 @@ force field that was set in the beginning of the design process. Within this fol
 A scaffold report in form of an excel spreadsheet is also created within this folder that
 contains information about the modified residues (like protonation states or filled-in missing atoms (hydrogen atoms)).
 
-In order to compute the potential energy of a molecular system for a specific
-force field, all the atom types need to be defined and parameterized. Proteins
-are polymers consisting of 20 different amino acids connected in well defined
-ways and geometries, which allowed researchers to prebuild force field atom
-types for amino acids. A ``protein_params`` sub-folder is created within the
+ A ``protein_params`` sub-folder is created within the
 ``FORCE_FIELD`` sub-folder that contains force field parameters and energy
 functions describing the protein, which can be used to calculate various interaction-energies.
-The final prepared and minimized structure is written in the ``FORCE_FIELD`` sub-folder as ``scaffold.pdb``.
 
 2.2 Choose your design positions
 ********************************
@@ -389,8 +360,7 @@ The steps that are now needed contain:
 3.1 Create Ligand Conformers
 ****************************
 
-To model your ligands flexibility correctly, a .pdb file containing ligand conformers is
-needed. If you already have one you can place it inside:
+To model your ligands flexibility correctly, a .pdb file containing ligand conformations is needed.
 
 ::
 
@@ -399,9 +369,9 @@ needed. If you already have one you can place it inside:
          └── conformers
              └── ligand_confs.pdb
 
-If not, several tools are available like `RDKits <https://www.rdkit.org/docs/GettingStartedInPython.html>`_ or
+Several tools are available like `RDKits <https://www.rdkit.org/docs/GettingStartedInPython.html>`_ or
 `Obabels <https://open-babel.readthedocs.io/en/latest/3DStructureGen/multipleconformers.html>`_ conformer sampling
-procedures. Luckily PocketOptimizer has an interface for Obabel:
+procedures. PocketOptimizer has an interface for the latter:
 
 .. code-block:: python
 
@@ -495,9 +465,8 @@ Options are either the original PocketOptimizer rotamer library ``CMLib`` or the
 When using the Dunbrack rotamer library a filter threshold can be defined which allows
 to filter out all rotamers that have a probability of occuring of less than the defined threshold.
 Accordingly, the threshold should be between 0 and 1 and allows to reduce the amount of sampled rotamers.
-In addition, certain chi angles can be expanded by +/- 1 Std to increase the number of possible rotamers, when using Dunbrack.
+In addition, certain chi angles can be expanded by +/- 2 Std to increase the number of possible rotamers, when using Dunbrack.
 
-This step defines a library (to change it repeat the step and use a different rotamer library).
 All accepted rotamers are contained in .pdb files and their energies are contained in .csv files under:
 
 ::
@@ -515,27 +484,7 @@ All accepted rotamers are contained in .pdb files and their energies are contain
 ----------------------
 
 Next all protein-protein and protein-ligand interaction energies are calculated, the protein-protein interaction energies are evaluated from force fields,
-whereas the protein-ligand interaction energies can be also evaluated using different scoring functions. Scoring functions are in principle based on energy
-functions and can be subdivided into different categories:
-
-Physics-based scoring functions
-*******************************
-
-Physics-based scoring functions contain only physically meaningful terms, like terms describing vdW or electrostatic interactions.
-Furthermore, they can also include specific direction-dependent terms describing hydrogen-bonding interactions or terms accounting for
-solvation/desolvation effects. Pocketoptimizer allows the scoring of protein-ligand interactions based on the ``AMBER ff14SB`` or the ``CHARMM36`` force field,
-which however only account for vdW and electrostatic interactions.
-
-Empirical scoring functions
-***************************
-
-Empirical scoring functions contain not only physically meaningful terms but also more intuitive terms. These terms are normally weighted by constant factors
-that are derived from training sets, which contain protein-ligand complexes together with experimentally measured binding affinity data. PocketOptimizer
-includes four different empirical scoring functions from `Smina <https://github.com/mwojcikowski/smina>`_,
-which is a fork of `Autodock Vina <https://vina.scripps.edu/>`_
-that still receives updates. The empirical scoring functions included are: ``Vina``, ``Vinardo``, ``Dkoes_scoring`` and ``Ad4_scoring``.
-
-When calculating all energies you can decide which scoring function to use. Calling:
+whereas the protein-ligand interaction energies can be also evaluated using different scoring functions. Scoring functions are in principle based on energy functions.
 
 .. code-block:: python
 
@@ -579,7 +528,7 @@ All energies are contained in .csv files under:
 5. Design Solutions
 -------------------
 
-After the energy computations are finished, the best ligand/rotamer poses can be
+After the energy computations are finished, the best ligand poses/rotamers can be
 calculated in order to finish the PocketOptimizer run.
 
 This is where PocketOptimizer shines the most, because you have a lot of freedom
@@ -658,7 +607,7 @@ energies.
 
 PocketOptimizer creates many files in the directory that is specified as the working directory.
 These can be files containing parameters for the protein or the ligand molecule, files containing the calculated energies,
-or also files prepared for the solver algorithm. In order to delete them,
+or files prepared for the solver algorithm. In order to delete them,
 PocketOptimizer includes a clean-up procedure, which scans your working directory after these files.
 
 .. code-block:: python
@@ -757,6 +706,64 @@ can be defined inside one Python script:
         num_solutions=10,           #  Number of solutions to compute
         ligand_scaling=100,         #  Scaling factor for protein-ligand interaction
         )
+
+By running the python script: ui.py, you can also access the command line interface:
+
+.. code-block:: bash
+
+    PocketOptimizer computational protein design pipeline CLI, for more options
+    use API.
+
+    usage: ui.py [-h] [-ff FORCEFIELD] -r RECEPTOR -l LIGAND [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--min_bb MIN_BB] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...] [--peptide_mutations [PEPTIDE_MUTATIONS ...]]
+                 [--flex_peptide_res [FLEX_PEPTIDE_RES ...]] [--vdw_thresh VDW_THRESH] [--library LIBRARY] [--dunbrack_filter_thresh DUNBRACK_FILTER_THRESH] [--nconfs NCONFS] [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS]
+                 [--max_poses MAX_POSES] [--sampling_pocket SAMPLING_POCKET] [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--cuda CUDA] [--clean CLEAN]
+
+    PocketOptimizer computational protein design pipeline CLI, for more options use API.
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      -ff FORCEFIELD, --forcefield FORCEFIELD
+                            Force field to be used either: amber_ff14SB or charmm36
+      -r RECEPTOR, --receptor RECEPTOR
+                            Protein input structure file in pdb format
+      -l LIGAND, --ligand LIGAND
+                            Ligand input structure file
+      --ph PH               ph value for side chain and ligand protonation
+      --keep_chains [KEEP_CHAINS ...]
+                            Chains to keep by their chain identifiers
+      --min_bb MIN_BB       Whether to minimize the proteins backbone, default: No minimization
+      --discard_mols [DISCARD_MOLS ...]
+                            Special molecules to exclude by their chain and residue identifier (A:1), per default everything, but peptides have to be defined manually
+      --mutations MUTATIONS [MUTATIONS ...]
+                            Mutations (A:1:ALA)
+      --peptide_mutations [PEPTIDE_MUTATIONS ...]
+                            Peptide mutations (A:1:ALA)
+      --flex_peptide_res [FLEX_PEPTIDE_RES ...]
+                            Peptide residues to sample flexiblity
+      --vdw_thresh VDW_THRESH
+                            VdW-energy threshold for rotamer and ligand pose sampling (kcal/mol)
+      --library LIBRARY     Rotamer library, options are: dunbrack or cmlib
+      --dunbrack_filter_thresh DUNBRACK_FILTER_THRESH
+                            Filter threshold for the dunbrack rotamer library (value between 0 and 1)
+      --nconfs NCONFS       Number of ligand conformers to sample
+      --rot ROT, --rot ROT  Maximum ligand rotation
+      --rot_steps ROT_STEPS, --rot_steps ROT_STEPS
+                            Ligand rotation steps
+      --trans TRANS, --trans TRANS
+                            Maximum ligand translation
+      --trans_steps TRANS_STEPS, --trans_steps TRANS_STEPS
+                            Ligand translation steps
+      --max_poses MAX_POSES, --max_poses MAX_POSES
+                            Maximum number of ligand poses to sample
+      --sampling_pocket SAMPLING_POCKET
+                            Sampling pocket for rotamer and ligand pose sampling
+      --scoring SCORING     Scoring function, options are: vina, vinardo, ad4_scoring, force_field
+      --scaling SCALING     Ligand scaling factor
+      --num_solutions NUM_SOLUTIONS
+                            Number of design solutions to calculate
+      --ncpus NCPUS         Number of CPUs for multiprocesing
+      --cuda CUDA           Enabling cuda for GPU based minimization, default: No cuda
+      --clean CLEAN         Clean the working directory
 
 Publications
 ************
