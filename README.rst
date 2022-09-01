@@ -29,6 +29,7 @@ dependencies and versions required for PocketOptimizer. By typing:
   conda env create -f environment.yml
 
 Conda creates a separate PocketOptimizer environment.
+
 Alternatively, you can use the minimal environment:
 
 .. code-block:: bash
@@ -37,7 +38,7 @@ Alternatively, you can use the minimal environment:
 
 
 Running PocketOptimizer
-======================
+=======================
 
 Since PocketOptimizer's rework, the framework is now accessed solely through Python 3.9.
 This means that it can be incorporated in your regular Python scripts or in an interactive fashion through Jupyter Notebooks.
@@ -142,7 +143,7 @@ not of importance for you. Otherwise, the easiest way to get the ligand inside t
 on an existing ligand. The superposition is strictly dependent on your design
 thoughts and also requires some experimentation und multiple design runs.
 
-The easiest way the superposition can be done is to use `PyMol <https://pymol.org/2/>`_, which offers
+The easiest way the superposition can be done is to use PyMol, which offers
 a Pair-Wise alignment tool to easily align elements the way you want to. The tool
 can be found in the PyMol toolbar at the top in ``Wizard`` as the
 name ``Pair Fit``.
@@ -277,8 +278,7 @@ force field that was set in the beginning of the design process. Within this fol
 A scaffold report in form of an excel spreadsheet is also created within this folder that
 contains information about the modified residues (like protonation states or filled-in missing atoms (hydrogen atoms)).
 
- A ``protein_params`` sub-folder is created within the
-``FORCE_FIELD`` sub-folder that contains force field parameters and energy
+A ``protein_params`` sub-folder is created within the ``FORCE_FIELD`` sub-folder that contains force field parameters and energy
 functions describing the protein, which can be used to calculate various interaction-energies.
 
 2.2 Choose your design positions
