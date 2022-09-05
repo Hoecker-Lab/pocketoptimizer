@@ -46,13 +46,13 @@ class FFScorer:
         self.lig_side = ''
 
     @staticmethod
-    def calculate_ff(poses: Tuple[int], struc: Molecule, ffev: FFEvaluate, pose_coords: np.ndarray = None,
+    def calculate_energy(poses: Tuple[int], struc: Molecule, ffev: FFEvaluate, pose_coords: np.ndarray,
                      rot_coords: np.ndarray = None, resid: str = None, chain: str = None) -> Tuple[np.float]:
         """Calculates the force field components and returns the energies
 
         Parameters
         ----------
-        pose: tuple
+        poses: tuple
             Tuple of ligand pose and rotamer id
         struc: :class: moleculekit.Molecule
             Object of Molecule to set the rotamer coordinates
@@ -75,8 +75,36 @@ class FFScorer:
         # set coordinates to current ligand pose
         struc.set('coords', pose_coords[..., poses[0]], 'segid L')
         energies = ffev.calculateEnergies(struc.coords)
-        nrg = energies['vdw'], energies['elec'] * 0.01
-        return nrg
+        return energies['vdw'], energies['elec'] * 0.01
+
+    def calculate_internal_energy(self, pose: int, struc: Molecule, ffev: FFEvaluate,
+                                  pose_coords: np.ndarray) -> Tuple[np.float]:
+        """
+        Calculates the internal energy of a rotamer
+
+        Parameters
+        ----------
+        pose: int
+            Index of current ligand pose
+        struc: :class: moleculekit.molecule.Molecule
+            Object containing all rotamers as frames
+        ffev: :class: ffevaluation.ffevaluate.FFEvaluate
+            Object created for respective forcefield from parameter file
+            between sets fixed_selection and variable_selection,
+            where energies can be calculated from
+        pose_coords: np.ndarray
+            Coordinates of the current rotamer
+
+        Returns
+        -------
+        Tuple with energy components
+        """
+
+        # Set coordinates to current rotamer
+        struc.set('coords', pose_coords[:, :, pose])
+        energies = ffev.calculateEnergies(struc.coords)
+
+        return energies['bond'], energies['angle'], energies['dihedral'], energies['improper'], energies['vdw'], energies['elec'] * 0.01
 
     def run_self_nrg(self, pose_coords: np.ndarray, mutations: List[Dict[str, Union[str, List[str]]]], nposes: int,
                      outpath: str, ncpus: int = 1) -> NoReturn:
@@ -102,8 +130,8 @@ class FFScorer:
         structure_path = os.path.join(self.project_path, 'scaffold', self.forcefield, 'protein_params', 'native_complex')
 
         if not os.path.exists(os.path.join(structure_path, 'structure.pdb')):
-            logger.error('Missing protein-ligand complex build. Run prepare_protein() and include ligand in binding pocket.')
-            raise FileNotFoundError('Missing protein-ligand complex build. Run prepare_protein() and include the ligand in the binding pocket.')
+            logger.error('Missing protein-ligand complex build.')
+            raise FileNotFoundError('Missing protein-ligand complex build.')
 
         outfile = os.path.join(outpath, 'ligand.csv')
 
@@ -116,25 +144,44 @@ class FFScorer:
         selection = selection[0:-4] + ')'
         struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
         ffev = FFEvaluate(struc, prm, betweensets=(selection, 'segid L'))
+        #self_nrgs = np.zeros((nposes, 6))
         self_nrgs = np.zeros((nposes, 2))
 
         with mp.Pool(processes=ncpus) as pool:
             with tqdm(total=nposes, desc='Ligand/Scaffold') as pbar:
                 for index, energy in enumerate(pool.imap(
                         partial(
-                            self.calculate_ff,
+                            self.calculate_energy,
                             struc=struc.copy(),
                             ffev=ffev,
                             pose_coords=pose_coords
                         ), [(pose,) for pose in range(nposes)],
                         chunksize=calculate_chunks(nposes=nposes, ncpus=ncpus))):
+                    #self_nrgs[index, -2:] = energy
                     self_nrgs[index] = energy
                     pbar.update()
+
+        # Generate FFEvaluate object for scoring ligand conformation
+        #struc.filter('segid L', _logger=False)
+        #ffev = FFEvaluate(struc, prm)
+
+        #with mp.Pool(processes=ncpus) as pool:
+            #with tqdm(total=nposes) as pbar:
+                #pbar.set_description('Ligand_Internal')
+                #for index, energy in enumerate(pool.imap(partial(
+                        #self.calculate_internal_energy,
+                        #struc=struc.copy(),
+                        #ffev=ffev,
+                        #pose_coords=pose_coords), np.arange(nposes),
+                        #chunksize=calculate_chunks(nposes=nposes, ncpus=ncpus))):
+                    #self_nrgs[index] += energy
+                    #pbar.update()
 
         # Save data as csv
         write_energies(outpath=outfile,
                        energies=self_nrgs,
-                       energy_terms=['VdW', 'ES'],
+                       #energy_terms=['Bond', 'Angle', 'Dihedral', 'Improper', 'Vdw', 'Elec'],
+                       energy_terms=['Vdw', 'Elec'],
                        name_a='ligand_pose',
                        nconfs_a=nposes)
 
@@ -165,10 +212,10 @@ class FFScorer:
                 output_file = os.path.join(output_file_prepend, f'ligand_{chain}_{resid}_{resname}.csv')
                 # Check if pairwise-interaction energy file already exists
                 if os.path.isfile(output_file):
-                    logger.info(f'Ligand-Sidechain-Interaction-Energies with Residue: {chain}_{resid}_{resname} already computed.')
+                    logger.info(f'Ligand-Sidechain interaction energy with residue: {chain}_{resid}_{resname} already computed.')
                     continue
                 logger.info(
-                    f'Ligand-Sidechain-Interaction-Energies with Residue: {chain}_{resid}_{resname} not computed yet.')
+                    f'Ligand-Sidechain interaction energy with residue: {chain}_{resid}_{resname} not computed yet.')
                 # Create Molecule object from rotamers of each residue
                 # Check if rotamers are computed for all mutations
                 try:
@@ -196,7 +243,7 @@ class FFScorer:
                     with mp.Pool(processes=ncpus) as pool:
                         for index, energy in enumerate(pool.imap(
                                 partial(
-                                    self.calculate_ff,
+                                    self.calculate_energy,
                                     struc=struc.copy(),
                                     ffev=ffev,
                                     pose_coords=pose_coords,
@@ -211,7 +258,7 @@ class FFScorer:
                 # Save data as csv
                 write_energies(outpath=output_file,
                                energies=pair_nrgs,
-                               energy_terms=['VdW', 'ES'],
+                               energy_terms=['Vdw', 'Elec'],
                                name_a='ligand_pose',
                                nconfs_a=nposes,
                                name_b=resname,
@@ -248,10 +295,10 @@ class FFScorer:
         nposes = pose_coords.shape[-1]
 
         if os.path.isfile(os.path.join(self.lig_scaff, 'ligand.csv')):
-            logger.info(f'Ligand-Scaffold-Interaction-Energies already computed.')
+            logger.info(f'Ligand-Scaffold/Self interaction energy already computed.')
 
         else:
-            logger.info(f'Ligand-Scaffold-Interaction-Energies not computed yet.')
+            logger.info(f'Ligand-Scaffold/Self interaction energy not computed yet.')
             self.run_self_nrg(pose_coords=pose_coords, mutations=mutations, nposes=nposes,
                               outpath=self.lig_scaff, ncpus=ncpus)
 

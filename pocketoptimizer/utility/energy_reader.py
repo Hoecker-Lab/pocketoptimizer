@@ -74,8 +74,10 @@ class EnergyReader:
                 csv = os.path.join(self.work_dir, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'sidechain_scaffold_{self.forcefield}', f'{chain}_{resid}_{resname}.csv')
                 # Read in csv as pandas dataframe
                 df = pd.read_csv(csv, delimiter='\t', index_col=0)
-                # create numpy array from dataframe summing up vdw and es energies
-                energies = np.transpose(np.array(df.groupby((np.arange(len(df.columns)) // 2) + 1, axis=1).sum()))
+                # create numpy array from dataframe summing up energies
+                # get energy offset
+                nrg_offset = len(df.columns)
+                energies = np.transpose(np.array(df.groupby((np.arange(len(df.columns)) // nrg_offset) + 1, axis=1).sum()))
                 # Fill array with energies
                 self._self_energies[pose][i:i+energies.shape[-1]] = energies[0]
                 i += energies.shape[-1]

@@ -87,6 +87,8 @@ class SminaScorer:
                 'num_tors_add': 0.2744
             }
         }
+        self.terms = [weight for weight in self.smina_weights[self.scoring_method].keys()]
+        self.weights = [weight for weight in self.smina_weights[self.scoring_method].values()]
         if self.scoring_method not in self.smina_weights.keys():
             logger.error(f'{self.scoring_method} is not a valid scoring method. Valid methods are:'
                          f' vina, vinardo, ad4_scoring.')
@@ -97,56 +99,47 @@ class SminaScorer:
         self.smina = smina_path
         self.tmp_dir = tmp_dir
 
-    def parse_smina(self, smina_output: str, nposes: int) -> np.ndarray:
+    def parse_smina(self, smina_output: str, nposes: int, intra: bool = False) -> np.ndarray:
         """
-        Parses smina affinity values
+        Smina output parsing function
 
-        #################################################################\n
-         # If you used AutoDock Vina in your work, please cite:          #\n
-         #                                                               #\n
-         # O. Trott, A. J. Olson,                                        #\n
-         # AutoDock Vina: improving the speed and accuracy of docking    #\n
-         # with a new scoring function, efficient optimization and       #\n
-         # multithreading, Journal of Computational Chemistry 31 (2010)  #\n
-         # 455-461                                                       #\n
-         #                                                               #\n
-         # DOI 10.1002/jcc.21334                                         #\n
-         #                                                               #\n
-         # Please see http://vina.scripps.edu for more information.      #\n
-         #################################################################\n
-         Detected 8 CPUs\n
-         Reading input ... done.\n
-         Setting up the scoring function ... done.\n
-         Affinity: -0.60387 (kcal/mol)\n
-         Intermolecular contributions to the terms, before weighting:\n
-             gauss 1     : 65.69073\n
-             gauss 2     : 633.94241\n
-             repulsion   : 8.09557\n
-             hydrophobic : 6.89632\n
-             Hydrogen    : 2.71140\n
         Parameters
         ----------
         smina_output: str
             Standard output captured from calling smina
         nposes: int
             Number of ligand poses
+        intra: bool
+            Whether to parse internamolecular energy
 
         Returns
         -------
         Array containing weighted energy components for all poses
         """
-        weights = [weight for weight in self.smina_weights[self.scoring_method].values()]
-        scores = np.zeros((nposes, len(self.smina_weights[self.scoring_method])))
+        if intra:
+            nrgs = np.zeros(len(self.weights) + 1)
+            scores = np.zeros((nposes, len(self.smina_weights[self.scoring_method]) + 1))
+        else:
+            nrgs = np.zeros(len(self.weights))
+            scores = np.zeros((nposes, len(self.smina_weights[self.scoring_method])))
 
         j = 0
         for line in smina_output.split('\n'):
             # Read out the energies for each pose
-            if line.startswith('## ') and not line.startswith('## Name'):
-                nrgs = np.zeros(len(weights))
-                for i, nrg in enumerate(line.strip().split()[2:]):
-                    nrgs[i] = float(nrg) * weights[i]
-                scores[j] = nrgs
-                j += 1
+            if intra:
+                if line.startswith('Intramolecular energy:'):
+                    nrgs[0] = float(line.strip().split()[2])
+                elif line.startswith('## ') and not line.startswith('## Name'):
+                    for i, nrg in enumerate(line.strip().split()[2:]):
+                        nrgs[i + 1] = float(nrg) * self.weights[i]
+                    scores[j] = nrgs
+                    j += 1
+            else:
+                if line.startswith('## ') and not line.startswith('## Name'):
+                    for i, nrg in enumerate(line.strip().split()[2:]):
+                        nrgs[i] = float(nrg) * self.weights[i]
+                    scores[j] = nrgs
+                    j += 1
         return scores
 
     def prepare_scaffold(self, mutations: List[Dict[str, Union[str, List[str]]]]) -> NoReturn:
@@ -212,7 +205,7 @@ class SminaScorer:
                     for line in pose_file:
                         combined_file.write(line)
 
-    def score_smina(self, receptor: str, ligand: str, nposes: int, ncpus: int = 1) -> Dict[str, float]:
+    def score_smina(self, receptor: str, ligand: str, nposes: int, intra: bool = False, ncpus: int = 1) -> Dict[str, float]:
         """
         Runs Smina scoring process for a receptor and ligand/s
 
@@ -224,6 +217,8 @@ class SminaScorer:
             Ligand structure/s
         nposes: int
             Number of ligand poses
+        intra: bool
+            Whether to parse internamolecular energy
         ncpus: int
             Number of CPUs to use for scoring [default: 1]
 
@@ -241,7 +236,7 @@ class SminaScorer:
             '--scoring', self.scoring_method
         ]
         process = subprocess.run(score_command, capture_output=True)
-        return self.parse_smina(process.stdout.decode('ascii'), nposes=nposes)
+        return self.parse_smina(process.stdout.decode('ascii'), nposes=nposes, intra=intra)
 
     def run_smina_scorer(self, mutations: List[Dict[str, Union[str, List[str]]]],
                          ncpus: int = 1, _keep_tmp: bool = False) -> None or NoReturn:
@@ -261,7 +256,6 @@ class SminaScorer:
         from pocketoptimizer.utility.utils import write_energies
 
         logger.info(f'Score ligand interactions using {self.scoring_method}.')
-        weights = [weight for weight in self.smina_weights[self.scoring_method].keys()]
 
         # Output ligand scaffold energy
         self.lig_scaff = os.path.join(self.project_path,
@@ -303,18 +297,23 @@ class SminaScorer:
         # Score ligand against fixed scaffold
         lig_scaffold_outfile = os.path.join(self.lig_scaff, 'ligand.csv')
         if os.path.isfile(lig_scaffold_outfile):
-            logger.info(f'Ligand-Scaffold-Interaction-Energies already computed.')
+            logger.info(f'Ligand-Scaffold/Self interaction energy already computed.')
         else:
-            logger.info(f'Ligand-Scaffold-Interaction-Energies not computed yet.')
+            logger.info(f'Ligand-Scaffold/Self interaction energy not computed yet.')
             logger.info('Prepare fixed scaffold.')
             self.prepare_scaffold(mutations=mutations)
             with tqdm(total=1, desc='Ligand/Scaffold') as pbar:
-                self_nrgs = self.score_smina(receptor=self.pocketless_scaffold, ligand=lig_outfile, nposes=nposes, ncpus=ncpus)
+                self_nrgs = self.score_smina(receptor=self.pocketless_scaffold,
+                                             ligand=lig_outfile,
+                                             nposes=nposes,
+                                             intra=False,
+                                             ncpus=ncpus)
                 pbar.update()
             # Save data as csv
             write_energies(outpath=lig_scaffold_outfile,
                            energies=self_nrgs,
-                           energy_terms=weights,
+                           #energy_terms=['Intra'] + self.terms,
+                           energy_terms=self.terms,
                            name_a='ligand_pose',
                            nconfs_a=nposes)
 
@@ -329,10 +328,10 @@ class SminaScorer:
                 lig_sidechain_outfile = os.path.join(f"{self.lig_side}", f"ligand_{chain}_{resid}_{resname}.csv")
                 # Check if pairwise-interaction energy file already exists
                 if os.path.isfile(lig_sidechain_outfile):
-                    logger.info(f'Ligand-Sidechain-Interaction-Energies with Residue: {chain}_{resid}_{resname} already computed.')
+                    logger.info(f'Ligand-Sidechain interaction energy for residue: {chain}_{resid}_{resname} already computed.')
                     continue
                 logger.info(
-                    f'Ligand-Sidechain-Interaction-Energies with Residue: {chain}_{resid}_{resname} not computed yet.')
+                    f'Ligand-Sidechain interaction energy for residue: {chain}_{resid}_{resname} not computed yet.')
                 # Create Molecule object from rotamers of each residue
                 # Check if rotamers are computed for all mutations
                 try:
@@ -350,23 +349,27 @@ class SminaScorer:
                 # Number of rotamers to score
                 nrots = sidechain.coords.shape[-1]
                 # Number of terms in the scoring function
-                nterms = len(weights)
+                nterms = len(self.terms)
 
                 # Create array (nposes * nrots * Number of energy terms)
                 pair_nrgs = np.zeros((nposes, nrots * nterms))
 
-                logger.info(f'Loop over Rotamers of Residue: {chain}_{resid}_{resname}.')
+                logger.info(f'Loop over rotamers of residue: {chain}_{resid}_{resname}.')
                 with tqdm(total=nrots, desc=f'Ligand/{chain}_{resid}_{resname}') as pbar:
                     for rot in np.arange(nrots):
                         res_pdb = f'{chain}_{resid}_{resname}_{rot}.pdb'
-                        pair_nrg = self.score_smina(receptor=res_pdb, ligand=lig_outfile, nposes=nposes, ncpus=ncpus)
+                        pair_nrg = self.score_smina(receptor=res_pdb,
+                                                    ligand=lig_outfile,
+                                                    nposes=nposes,
+                                                    intra=False,
+                                                    ncpus=ncpus)
                         pair_nrgs[:, rot*nterms:rot*nterms + nterms] = pair_nrg
                         pbar.update()
 
                 # Save data as csv
                 write_energies(outpath=lig_sidechain_outfile,
                                energies=pair_nrgs,
-                               energy_terms=weights,
+                               energy_terms=self.terms,
                                name_a='ligand_pose',
                                nconfs_a=nposes,
                                name_b=resname,

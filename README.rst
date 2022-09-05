@@ -100,9 +100,7 @@ Now place the following files inside the ``ligand`` and ``scaffold`` directory:
 
     project
     ├── ligand
-    │   ├── YOUR_LIGAND.mol2
-    │   └── FORCE_FIELD
-    │       └── ligand.mol2
+    │   └──  YOUR_LIGAND.mol2
     │
     └── scaffold
         └── YOUR_PROTEIN.pdb
@@ -254,11 +252,11 @@ notebook and type the following:
         keep_chains=['A', 'B'],  # Specific protein chain to keep
         backbone_restraint=True, #  Restrains the backbone during the minimization
         cuda=False,              # Performs minimization on CPU instead of GPU
-        discard_mols=None        # Special molecules to exclude. Per default everything, but peptides have to be defined manually
+        discard_mols=[]        # Special molecules to exclude. Per default everything, but peptides have to be defined manually
         )
 
-This allows to minimize the structure with or without the ligand inside the
-binding pocket. Remember, this can also be a design choice you want to consider
+This allows to minimize the structure with or without the backbone being constrained.
+Remember, this can also be a design choice you want to consider
 as the scaffold/backbone is the foundation of your design.
 The following files are created after this step:
 
@@ -280,6 +278,14 @@ contains information about the modified residues (like protonation states or fil
 
 A ``protein_params`` sub-folder is created within the ``FORCE_FIELD`` sub-folder that contains force field parameters and energy
 functions describing the protein, which can be used to calculate various interaction-energies.
+
+**Warning**: If you are using CUDA, you may run into an OpenMMException.
+You can force the installation of a CUDA version compatible with your driver by running:
+
+.. code-block:: bash
+
+   conda install -c conda-forge cudatoolkit=11.x
+
 
 2.2 Choose your design positions
 ********************************

@@ -84,7 +84,9 @@ class TxtReporter:
         """
 
         col_width = 0
-        for p in self._solutions.get_positions():
+        # assuming all ligand-sidechain energies have same components
+        for p in self._sidechain_positions:
+            comp_names = self._solutions.get_pair_energy_component_names(p, 'ligand')
             res = self._solutions.get_residue_for_positions(solution_index, p)
             col_width = max(col_width, len(res) + len(p) + 1)
 
@@ -94,8 +96,7 @@ class TxtReporter:
         totals = {}
         totals['sum'] = 0.0
         totals['scaled'] = 0.0
-        # assuming all ligand-sidechain energies have same components
-        comp_names = self._solutions.get_self_energy_component_names('ligand')
+
         for c in comp_names:
             totals[c] = 0.0
             title_line += ' | ' + c.ljust(8)
@@ -197,7 +198,7 @@ class TxtReporter:
 
         out_file.write('LIGAND INTERACTION SCORES \n\n')
         out_file.write('SELF ENERGIES \n')
-        out_file.write('(Interactions between ligand and fixed scaffold part)\n\n')
+        out_file.write('(Internal and interactions between ligand and fixed scaffold part)\n\n')
         self._write_ligand_self_report(solution_index, out_file)
         out_file.write('\nPAIRWISE ENERGIES \n')
         out_file.write('(Interactions between ligand and the '
@@ -220,11 +221,10 @@ class TxtReporter:
             File object of the output file
         """
         col_width = 0
-        for pos in self._solutions.get_positions():
-            if pos != 'ligand':
-                comp_names = self._solutions.get_self_energy_component_names(pos)
-                res = self._solutions.get_residue_for_positions(solution_index, pos)
-                col_width = max(col_width, len(res) + len(pos) + 1)
+        for p in self._sidechain_positions:
+            comp_names = self._solutions.get_self_energy_component_names(p)
+            res = self._solutions.get_residue_for_positions(solution_index, p)
+            col_width = max(col_width, len(res) + len(p) + 1)
 
         totals = {}
         totals['sum'] = 0.0
@@ -238,24 +238,23 @@ class TxtReporter:
             title_row += ' | ' + c.rjust(8)
         title_row += '\n'
         out_file.write('\n' + title_row + '  ' + '-' * len(title_row) + '\n')
-        for pos in self._solutions.get_positions():
-            if pos != 'ligand':
-                res = self._solutions.get_residue_for_positions(solution_index, pos)
-                out_file.write('   ' + (pos + ':' + res).ljust(col_width)
-                               + '  ')
-                scaled = self._solutions.get_self_energy(solution_index, pos)
-                totals['scaled'] += scaled
-                summa = 0.0
-                out_str = ''
-                for c in comp_names:
-                    e = self._solutions.get_self_energy_component(solution_index, pos, c)
-                    summa += e
-                    totals[c] += e
-                    out_str += ('%.4f' % e).rjust(max(8, len(c))) + '   '
-                totals['sum'] += summa
-                out_file.write(('%.4f' % scaled).rjust(10) + '   '
-                               + ('%.4f' % summa).rjust(10)
-                               + '   ' + out_str + '\n')
+        for p in self._sidechain_positions:
+            res = self._solutions.get_residue_for_positions(solution_index, p)
+            out_file.write('   ' + (p + ':' + res).ljust(col_width)
+                           + '  ')
+            scaled = self._solutions.get_self_energy(solution_index, p)
+            totals['scaled'] += scaled
+            summa = 0.0
+            out_str = ''
+            for c in comp_names:
+                e = self._solutions.get_self_energy_component(solution_index, p, c)
+                summa += e
+                totals[c] += e
+                out_str += ('%.4f' % e).rjust(max(8, len(c))) + '   '
+            totals['sum'] += summa
+            out_file.write(('%.4f' % scaled).rjust(10) + '   '
+                           + ('%.4f' % summa).rjust(10)
+                           + '   ' + out_str + '\n')
 
         out_file.write('\n      ' + 'Total'.rjust(col_width) + '  '
                        + ('%.4f' % totals['scaled']).rjust(8) +
@@ -274,16 +273,14 @@ class TxtReporter:
         solution_index: int
             Index of solution
         out_file: StringIO
-            File object of the output file.
+            File object of the output file
         """
         out_file.write('   Position  | Energy [kcal/mol]')
         out_file.write('   -------------------------\n')
-        for pos in self._solutions.get_positions():
-            if pos == 'ligand':
-                continue
-            e = self._solutions.get_self_energy(solution_index, pos)
-            res = self._solutions.get_residue_for_positions(solution_index, pos)
-            out_file.write('   ' + (pos + ':' + res).ljust(11))
+        for p in self._sidechain_positions:
+            e = self._solutions.get_self_energy(solution_index, p)
+            res = self._solutions.get_residue_for_positions(solution_index, p)
+            out_file.write('   ' + (p + ':' + res).ljust(11))
             out_file.write(('%.4f' % e).rjust(10) + '\n')
         out_file.write('\n')
 
@@ -294,38 +291,22 @@ class TxtReporter:
         Parameters
         ----------
         solution_index: int
-            Index of solution.
+            Index of solution
         out_file: StringIO
-            File object of the output file.
+            File object of the output file
         """
 
-        # prepape order of rows: first, sidechain pairs, then mixed pairs,
-        # then non-sidechain pairs
         position_pairs = []
         for i, p1 in enumerate(self._sidechain_positions[:-1]):
             for p2 in self._sidechain_positions[i + 1:]:
                 position_pairs.append((p1, p2))
 
-        non_aa_positions = self._solutions.get_positions()
-        non_aa_positions.remove('ligand')
-        for sp in self._sidechain_positions:
-            non_aa_positions.remove(sp)
-
-        if len(non_aa_positions) > 0:
-            for sp in self._sidechain_positions:
-                for nap in non_aa_positions:
-                    position_pairs.append((sp, nap))
-            if len(non_aa_positions) > 1:
-                for i, p1 in enumerate(non_aa_positions[:-1]):
-                    for p2 in non_aa_positions[i + 1:]:
-                        position_pairs.append((p1, p2))
-
         col_width = 0
-        for p in self._solutions.get_positions():
-            if p != 'ligand':
-                comp_names = self._solutions.get_self_energy_component_names(p)
-                res = self._solutions.get_residue_for_positions(solution_index, p)
-                col_width = max(col_width, len(res) + len(p) + 1)
+        for position_pair in position_pairs:
+            comp_names = self._solutions.get_pair_energy_component_names(position_pair[0], position_pair[1])
+            for position in position_pair:
+                res = self._solutions.get_residue_for_positions(solution_index, position)
+                col_width = max(col_width, len(res) + len(position) + 1)
 
         totals = {}
         totals['sum'] = 0.0
@@ -381,11 +362,9 @@ class TxtReporter:
         out_file.write('   Position 1 | Position 2 | Energy [kcal/mol]\n'
                        '   --------------------------------\n')
         lines = []
-        positions = self._solutions.get_positions()
-        positions.remove('ligand')
-        for i, p1 in enumerate(positions):
+        for i, p1 in enumerate(self._sidechain_positions):
             res1 = self._solutions.get_residue_for_positions(solution_index, p1)
-            for p2 in positions[i + 1:]:
+            for p2 in self._sidechain_positions[i + 1:]:
                 res2 = self._solutions.get_residue_for_positions(solution_index, p2)
                 line = '   ' + (p1 + ':' + res1).ljust(13) + (p2 + ':' + res2).ljust(12)
                 e = self._solutions.get_pair_energy(solution_index, p1, p2)
@@ -408,15 +387,14 @@ class TxtReporter:
             File object of the output file.
         """
         out_file.write('PROTEIN INTERACTION SCORES \n\n')
-        out_file.write(' SELF ENERGIES\n (Interactions '
+        out_file.write(' SELF ENERGIES\n (Internal and interactions '
                        'between flexible sidechains and fixed scaffold part)\n\n')
         if self._solutions.has_detailed_self_energies():
             self._write_detailed_self_report(solution_index, out_file)
         else:
             self._write_simple_self_report(solution_index, out_file)
 
-        out_file.write(' PAIRWISE ENERGIES\n (Interactions '
-                       'between flexible sidechains and fixed scaffold part)'
+        out_file.write(' PAIRWISE ENERGIES\n (Interactions between flexible sidechains)'
                        '\n\n')
         if self._solutions.has_detailed_pair_energies():
             self._write_detailed_pair_report(solution_index, out_file)

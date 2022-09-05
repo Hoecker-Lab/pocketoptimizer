@@ -504,12 +504,12 @@ class PoseSampler:
                         pbar.update()
 
         val_ids = [val_id[0] for val_id in np.argwhere(energies <= min(energies) + vdw_filter_thresh)]
-        logger.info(f'Calculated poses within threshold: {len(val_ids)}.')
+        logger.info(f'Calculated {len(val_ids)} poses within energy threshold of {str(vdw_filter_thresh)} kcal/mol.')
 
         ligand_pose_energy_file = os.path.join(self.work_dir, 'ligand', self.forcefield, 'poses', 'ligand_poses.csv')
         write_energies(outpath=ligand_pose_energy_file,
                        energies=energies,
-                       energy_terms=['VdW'],
+                       energy_terms=['Vdw'],
                        name_a='ligand_pose',
                        nconfs_a=nposes)
 

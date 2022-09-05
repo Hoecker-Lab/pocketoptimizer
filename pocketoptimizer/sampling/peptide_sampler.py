@@ -78,7 +78,7 @@ class PeptideSampler(FFRotamerSampler):
                             merged_rot_file.write(line)
                 merged_rot_file.write('END')
 
-    def calculate_nrg(self, conf_id: int, structure: Molecule, ffev: FFEvaluate) -> np.float:
+    def calculate_internal_energy(self, conf_id: int, structure: Molecule, ffev: FFEvaluate) -> np.float:
         """
         Calculates the energy of a peptide conformation
 
@@ -93,13 +93,13 @@ class PeptideSampler(FFRotamerSampler):
 
         Returns
         -------
-        Returns summed energie
+        Returns total energy
         """
         # Set coordinates to coordinates of conformer
         structure.set('coords', structure.coords[:, :, conf_id])
         energies = ffev.calculateEnergies(structure.coords[:, :, conf_id])
         structure.write(os.path.join(self.tmp, f'ligand_conf_{conf_id}.pdb'))
-        total_nrg = 0
+        total_nrg = 0.0
         for term, nrg in energies.items():
             if term != 'total':
                 if term == 'elec':
@@ -242,7 +242,7 @@ class PeptideSampler(FFRotamerSampler):
         with tqdm(total=nconfs, desc='Filter Conformers') as pbar:
             with mp.Pool(processes=ncpus) as pool:
                 for pose_id, energy in enumerate(pool.imap(
-                        partial(self.calculate_nrg,
+                        partial(self.calculate_internal_energy,
                                 structure=confs.copy(),
                                 ffev=ffev
                                 ), np.arange(nconfs),

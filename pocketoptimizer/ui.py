@@ -58,12 +58,12 @@ class DesignPipeline:
         os.environ["POCKETOPTIMIZER_LOGFILE"] = os.path.join(self.work_dir, 'pocketoptimizer.log')
 
         logging.config.fileConfig(
-            os.path.join(os.path.dirname(os.path.realpath(__file__)), "logging.ini"), disable_existing_loggers=False
+            os.path.join(path(), "logging.ini"), disable_existing_loggers=False
         )
 
         # Set environment variables for MATCH
-        os.environ["MATCH"] = os.path.join(path(), '..', 'MATCH_RELEASE', 'MATCH')
-        os.environ["PerlChemistry"] = os.path.join(path(), '..', 'MATCH_RELEASE', 'PerlChemistry')
+        os.environ["MATCH"] = os.path.abspath(os.path.join(path(), '..', 'MATCH_RELEASE', 'MATCH'))
+        os.environ["PerlChemistry"] = os.path.abspath(os.path.join(path(), '..', 'MATCH_RELEASE', 'PerlChemistry'))
 
         def create_settings_py(work_dir: str) -> NoReturn:
             """
@@ -84,7 +84,7 @@ class DesignPipeline:
             tmp_dir = tempfile.gettempdir()
             pocketoptimizer_logfile = os.path.join(work_dir, 'pocketoptimizer.log')
 
-            match_path = os.path.join(path(), '..', 'MATCH_RELEASE', 'MATCH', 'scripts', 'MATCH.pl')
+            match_path = os.path.abspath(os.path.join(path(), '..', 'MATCH_RELEASE', 'MATCH', 'scripts', 'MATCH.pl'))
             solver_path = path(bin_file='sontag_solver')
             psfgen_path = path(bin_file='psfgen')
 
@@ -150,7 +150,7 @@ class DesignPipeline:
         self.prepared_protein = ''
         self.peptide = peptide
         self.ligand_protonated = ''
-        self.built_ligand_params = None
+        self.built_ligand_params = {}
         self.ligand_conformers = ''
         self.ligand_poses = ''
         self.mutations = []
@@ -203,7 +203,6 @@ class DesignPipeline:
         forcefield: str
             Force field. Options are 'amber_ff14SB' and 'charmm36' (Default: 'amber_ff14SB').
          """
-        from pocketoptimizer.utility.utils import DotDict
         if forcefield in self.scoring['ff']:
             self.forcefield = forcefield
             self.built_scaffold = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'scaffold.pdb')
@@ -212,11 +211,11 @@ class DesignPipeline:
                 self.ligand_protonated = os.path.join(self.work_dir, 'ligand', self.forcefield, 'ligand.mol2')
             else:
                 self.ligand_protonated = os.path.join(self.work_dir, 'ligand', self.forcefield, 'ligand.pdb')
-            self.built_ligand_params = DotDict({'params_folder': os.path.join(self.work_dir, 'ligand', self.forcefield, 'params'),
-                                                'mol2': [os.path.join(self.work_dir, 'ligand', self.forcefield, 'params','ligand.mol2')],
-                                                'frcmod': [os.path.join(self.work_dir, 'ligand', self.forcefield, 'params','ligand.frcmod')],
-                                                'prm': [os.path.join(self.work_dir, 'ligand', self.forcefield, 'params','ligand.prm')],
-                                                'rtf': [os.path.join(self.work_dir, 'ligand', self.forcefield, 'params','ligand.rtf')]})
+            self.built_ligand_params = {'params_folder': os.path.join(self.work_dir, 'ligand', self.forcefield, 'params'),
+                                        'mol2': [os.path.join(self.work_dir, 'ligand', self.forcefield, 'params','ligand.mol2')],
+                                        'frcmod': [os.path.join(self.work_dir, 'ligand', self.forcefield, 'params','ligand.frcmod')],
+                                        'prm': [os.path.join(self.work_dir, 'ligand', self.forcefield, 'params','ligand.prm')],
+                                        'rtf': [os.path.join(self.work_dir, 'ligand', self.forcefield, 'params','ligand.rtf')]}
             self.ligand_conformers = os.path.join(self.work_dir, 'ligand', self.forcefield, 'conformers', 'ligand_confs.pdb')
             self.ligand_poses = os.path.join(self.work_dir, 'ligand', self.forcefield, 'poses', 'ligand_poses.pdb')
         else:
@@ -385,7 +384,7 @@ class DesignPipeline:
         peptide_sampler = PeptideSampler(work_dir=self.work_dir,
                                          positions=_positions,
                                          forcefield=self.forcefield,
-                                         params_folder=self.built_ligand_params.params_folder,
+                                         params_folder=self.built_ligand_params['params_folder'],
                                          library=library,
                                          )
 
@@ -597,8 +596,8 @@ class DesignPipeline:
         self._set_rot_lib(library)
 
         if vdw_filter_thresh < 0:
-            logger.error('Threshold needs to be positive.')
-            return
+            logger.error('Energy threshold needs to be positive.')
+            raise ValueError('Energy threshold needs to be positive.')
 
         rotamer_sampler = sidechain_rotamers_ffev.FFRotamerSampler(
             work_dir=self.work_dir,
@@ -645,8 +644,8 @@ class DesignPipeline:
             raise ValueError('Define grid, if grid method should be used.')
 
         if vdw_filter_thresh < 0:
-            logger.error('Threshold needs to be positive.')
-            return
+            logger.error('Energy threshold needs to be positive.')
+            raise ValueError('Energy threshold needs to be positive.')
 
         sampling_scaffold_ligand = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params',
                                                 'ligand_sampling_pocket', 'structure.pdb')
@@ -699,16 +698,17 @@ class DesignPipeline:
             raise ValueError('No rotamer library has been defined. Sample side chain rotamers first.')
 
         if scoring in self.scoring['smina']:
-            if not self.peptide:
-                self.scorer = scoring
-            else:
-                logger.warning(f'Scoring function: {scoring} is not optimized for protein-peptide scoring.')
-                raise RuntimeWarning(f'Scoring function: {scoring} is not optimized for protein-peptide scoring.')
+            if self.peptide:
+                logger.warning(f'Scoring function {scoring} is not optimized for protein-peptide interaction scoring.')
+                raise RuntimeWarning(f'Scoring function {scoring} is not optimized for protein-peptide interaction scoring.')
         elif scoring in self.scoring['ff']:
-            self.scorer = scoring
+            if scoring != self.forcefield:
+                logger.warning(f'Can not score with {scoring} if force field is {self.forcefield}.')
+                raise RuntimeWarning(f'Can not score with {scoring} if force field is {self.forcefield}.')
         else:
             logger.error(f'Scorer: {scoring} is not implemented.')
             raise NotImplementedError(f'Scorer: {scoring} is not implemented.')
+        self.scorer = scoring
 
         logger.info('Start energy calculations.')
         logger.info(f'Using {self.ncpus} CPUs for multiprocessing.')
@@ -1027,7 +1027,7 @@ class DesignPipeline:
 def main():
     import sys
     import argparse
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
     import pathlib
     # Get path of working directory

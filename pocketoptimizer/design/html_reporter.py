@@ -370,8 +370,8 @@ class HtmlReporter:
             Html BODY tag in which to insert the table
         """
         body.insert(t.H4('Ligand pairwise energies'),
-                    t.P('Interactions between ligand '
-                        'and flexible side chains'))
+                    t.P('Internal and interactions between ligand '
+                        'and flexible sidechains'))
         # first, amino acid side chains:
         body.insert(self._get_detail_lig_sidechain_table(solution_index))
 
@@ -385,7 +385,7 @@ class HtmlReporter:
             return
 
         body.insert(t.P('Interactions between ligand '
-                        'and other design positions'))
+                        'and flexible sidechains'))
         component_names = None
         pos_column = []
         pos_highlight = []
@@ -449,11 +449,12 @@ class HtmlReporter:
         body: t.BODY
             Html BODY tag in which to insert the table
         """
+        self._write_ligand_self_report(solution_index, body)
+
         if self._solutions.has_detailed_pair_energies():
             self._write_detailed_ligand_pair_report(solution_index, body)
         else:
             self._write_simple_ligand_pair_report(solution_index, body)
-        self._write_ligand_self_report(solution_index, body)
 
     def _write_detailed_self_report(self, solution_index: int, body: t.BODY) -> NoReturn:
         """
@@ -568,7 +569,7 @@ class HtmlReporter:
 
         """
         body.insert(t.H4('Side chain self energies'),
-                    t.P('Interaction with fixed scaffold part'))
+                    t.P('Internal and interaction with fixed scaffold part'))
         if self._solutions.has_detailed_self_energies():
             self._write_detailed_self_report(solution_index, body)
         else:

@@ -11,7 +11,7 @@ from moleculekit.tools.autosegment import autoSegment2
 from moleculekit.tools.preparation import systemPrepare
 from moleculekit.molecule import Molecule
 
-from pocketoptimizer.utility.utils import fix_parameters, DotDict
+from pocketoptimizer.utility.utils import fix_parameters
 from pocketoptimizer.preparation.aacodes import special2standard
 from pocketoptimizer.utility.utils import create_pairs
 from pocketoptimizer.path import path
@@ -24,7 +24,7 @@ class SystemBuilder:
     Class providing system building functionalities to create systems for force field energy computations and minimization.
     """
     def __init__(self, work_dir: str, structure: str, forcefield: str, mutations: List[Dict[str, Union[str, List[str]]]] = None,
-                 ligand_params: DotDict = None,  peptide: bool = False, obabel: str = 'obabel', antechamber: str = 'antechamber',
+                 ligand_params: Dict = {},  peptide: bool = False, obabel: str = 'obabel', antechamber: str = 'antechamber',
                  parmchk2: str = 'parmchk2', match: str = '', tleap: str = 'tleap', psfgen: str = ''):
         """
         Constructor method.
@@ -40,8 +40,8 @@ class SystemBuilder:
         mutations: list
             List of all mutations that should be build in the system. Contains dictionaries as list entries.
             The dictionary should contain 'chain', 'resid', 'mutations' as keys. [default: None]
-        ligand_params: DotDict
-            Containing paths to ligand parameter files [default: None]
+        ligand_params: dict
+            Containing paths to ligand parameter files [default: {}]
         peptide: bool
             Whether to build for peptide [default: False]
         obabel: str
@@ -270,17 +270,17 @@ class SystemBuilder:
             self.mutate_peptide(struc=peptide)
 
         else:
-            if not os.path.isfile(os.path.join(self.ligand_params.params_folder, 'structure.pdb')):
+            if not os.path.isfile(os.path.join(self.ligand_params['params_folder'], 'structure.pdb')):
                 logger.info('Build native protein.')
                 self.build_ff(
                     structure=peptide,
-                    outdir=self.ligand_params.params_folder,
+                    outdir=self.ligand_params['params_folder'],
                 )
             else:
                 logger.info('Peptide already built.')
 
         # Copy the structure since mutations can occur
-        shutil.copy(os.path.join(self.ligand_params.params_folder, 'structure.pdb'), os.path.join(self.ligand_params.params_folder, '..', 'ligand.pdb'))
+        shutil.copy(os.path.join(self.ligand_params['params_folder'], 'structure.pdb'), os.path.abspath(os.path.join(self.ligand_params['params_folder'], '..', 'ligand.pdb')))
 
     def build_complex(self, ligand: str, sampling_pocket: str = 'GLY') -> NoReturn:
         """Builds proteins for force field computations with ligand inside.
@@ -335,7 +335,6 @@ class SystemBuilder:
                     outdir=native_complex_path)
             else:
                 logger.info('Native complex already built.')
-                # Build all mutated scaffolds needed for energy calculations
 
         # Build all mutated scaffolds needed for energy calculations
         else:
@@ -367,7 +366,7 @@ class SystemBuilder:
             for resname in position["mutations"]:
                 outpath = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', f'{chain}_{resid}_{resname}')
                 if not os.path.isfile(os.path.join(outpath, 'structure.pdb')):
-                    logger.info(f'Build mutation {chain}_{resid}_{resname}.')
+                    logger.info(f'Build mutation: {chain}_{resid}_{resname}.')
                     sample_structure = struc.copy()
                     for other_position in self.mutations:
                         # Other position: mutate to glycine or alanine
@@ -435,7 +434,7 @@ class SystemBuilder:
             outpath = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', scaffold_name)
 
             if not os.path.isfile(os.path.join(outpath, 'structure.pdb')):
-                logger.info(f'Build mutations {scaffold_name}.')
+                logger.info(f'Build mutation combination: {scaffold_name}.')
                 mut_structure.mutateResidue(sel=f'chain {chain_a} and resid {resid_a}', newres=resname_a)
                 mut_structure.mutateResidue(sel=f'chain {chain_b} and resid {resid_b}', newres=resname_b)
 
@@ -453,7 +452,7 @@ class SystemBuilder:
         struc: :class: moleculekit.molecule.Molecule
             Object of molecule which will be mutated
         """
-        if not os.path.isfile(os.path.join(self.ligand_params.params_folder, 'structure.pdb')):
+        if not os.path.isfile(os.path.join(self.ligand_params['params_folder'], 'structure.pdb')):
             mut_structure = struc.copy()
             for position in self.mutations:
                 chain, resid, aa = position['chain'], position['resid'], position['mutations'][0]
@@ -462,7 +461,7 @@ class SystemBuilder:
 
             self.build_ff(
                 structure=mut_structure,
-                outdir=self.ligand_params.params_folder,
+                outdir=self.ligand_params['params_folder'],
             )
         else:
             logger.info(f'Mutated peptide already built.')
@@ -486,8 +485,10 @@ class SystemBuilder:
         os.makedirs(outdir, exist_ok=True)
         # Load default force field parameters
         if self.ligand_params and not self.peptide:
-            topo, param = self.get_ff_params(lig_mol2=self.ligand_params.mol2, lig_frcmod=self.ligand_params.frcmod,
-                                            lig_rtf=self.ligand_params.rtf, lig_prm=self.ligand_params.prm)
+            topo, param = self.get_ff_params(lig_mol2=self.ligand_params['mol2'],
+                                             lig_frcmod=self.ligand_params['frcmod'],
+                                             lig_rtf=self.ligand_params['rtf'],
+                                             lig_prm=self.ligand_params['prm'])
         else:
             topo, param = self.get_ff_params()
 
@@ -625,10 +626,10 @@ class SystemBuilder:
             logger.error(f'Could not open: {self.structure}.')
             raise FileNotFoundError(f'Could not open: {self.structure}.')
 
-        ligand_mol2 = os.path.join(self.ligand_params.params_folder, 'ligand.mol2')
-        ligand_pdb = os.path.join(self.ligand_params.params_folder, 'ligand.pdb')
-        os.makedirs(self.ligand_params.params_folder, exist_ok=True)
-        os.chdir(self.ligand_params.params_folder)
+        ligand_mol2 = os.path.join(self.ligand_params['params_folder'], 'ligand.mol2')
+        ligand_pdb = os.path.join(self.ligand_params['params_folder'], 'ligand.pdb')
+        os.makedirs(self.ligand_params['params_folder'], exist_ok=True)
+        os.chdir(self.ligand_params['params_folder'])
 
         # Remove all protons and convert to mol2
         ligand = Molecule(self.structure)
@@ -662,7 +663,7 @@ class SystemBuilder:
             raise RuntimeError(f'Antechamber failed with the following error: {stderr.decode("ascii")}')
 
         # Copy prepared ligand
-        shutil.copy(ligand_mol2, os.path.join('..', 'ligand.mol2'))
+        shutil.copy(ligand_mol2, os.path.abspath(os.path.join('..', 'ligand.mol2')))
 
         # Convert atomtypes to GAFF2 for AMBER
         if self.forcefield.startswith('amber'):

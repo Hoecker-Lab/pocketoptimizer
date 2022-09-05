@@ -1,7 +1,7 @@
 
- TOTAL ENERGY:    -246.79 kcal/mol
- BINDING ENERGY:  -130.34 kcal/mol
- PACKING ENERGY:  -116.45 kcal/mol
+ TOTAL ENERGY:    -148.09 kcal/mol
+ BINDING ENERGY:  -133.42 kcal/mol
+ PACKING ENERGY:  -14.67 kcal/mol
 
 ____________________________________________________________________________________________________
 
@@ -19,24 +19,24 @@ ________________________________________________________________________________
 LIGAND INTERACTION SCORES 
 
 SELF ENERGIES 
-(Interactions between ligand and fixed scaffold part)
+(Internal and interactions between ligand and fixed scaffold part)
 
 
              |  Scaled ||     Sum |   gauss1 |   gauss2 | repulsion | hydrophobic | non_dir_h_bond | num_tors_div
    -----------------------------------------------------------------------------------------------------------------
-              -104.4800    -5.2240    -1.8420    -3.8580      1.2880       -0.8120          -0.0000         0.0000   
+              -105.2080    -5.2604    -1.6604    -3.9716      1.1566       -0.7850          -0.0000         0.0000   
 
 PAIRWISE ENERGIES 
 (Interactions between ligand and the flexible sidechains)
 
-  Position      | Energies [kcal/mol]
-                |  Scaled ||     Sum | gauss1   | gauss2   | repulsion | hydrophobic | non_dir_h_bond | num_tors_div
-  --------------------------------------------------------------------------------------------------------------------
-  A_44:THR         -4.2400    -0.2120    -0.0640    -0.0930      0.0000       -0.0550          -0.0000         0.0000   
-  B_84:ARG        -16.6000    -0.8300    -0.1700    -0.2800      0.2200       -0.0170          -0.5830         0.0000   
-  B_88:THR         -5.0200    -0.2510    -0.1010    -0.1350      0.0130       -0.0280          -0.0000         0.0000   
+  Position | Energies [kcal/mol]
+           |  Scaled ||     Sum | gauss1   | gauss2   | repulsion | hydrophobic | non_dir_h_bond | num_tors_div
+  ---------------------------------------------------------------------------------------------------------------
+  A_44:THR    -4.3720    -0.2186    -0.0710    -0.0922      0.0000       -0.0554          -0.0000         0.0000   
+  B_84:ARG   -18.6240    -0.9312    -0.2351    -0.2613      0.3805       -0.0104          -0.8049         0.0000   
+  B_88:THR    -5.2160    -0.2608    -0.1462    -0.1272      0.0400       -0.0274          -0.0000         0.0000   
 
-          Total  -25.8600    -1.2930    -0.3350    -0.5080      0.2330       -0.1000          -0.5830         0.0000
+      Total  -28.2120    -1.4106    -0.4523    -0.4807      0.4205       -0.0932          -0.8049         0.0000
 
 
 ____________________________________________________________________________________________________
@@ -44,22 +44,25 @@ ________________________________________________________________________________
 PROTEIN INTERACTION SCORES 
 
  SELF ENERGIES
- (Interactions between flexible sidechains and fixed scaffold part)
+ (Internal and interactions between flexible sidechains and fixed scaffold part)
 
   Position | Energies [kcal/mol]
-           |   Scaled  ||       Sum |      VdW |       ES
+           |   Scaled  ||       Sum |      Vdw |     Elec
   ----------------------------------------------------------
-   A_44:THR    -17.7850     -17.7850    -3.4680   -14.3170   
-   B_84:ARG   -101.0400    -101.0400    -5.1480   -95.8920   
-   B_88:THR     -6.6020      -6.6020    -2.3000    -4.3020   
+   A_44:THR     -5.3239      -5.3239    -5.1281    -0.1958   
+   B_84:ARG     -6.5828      -6.5828    -5.7537    -0.8291   
+   B_88:THR     -1.8949      -1.8949    -1.8566    -0.0383   
+
+         Total  -13.8016   -13.8016   -12.7384    -1.0632
 
  PAIRWISE ENERGIES
- (Interactions between flexible sidechains and fixed scaffold part)
+ (Interactions between flexible sidechains)
 
   Position 1 | Position 2 | Energies [kcal/mol]
-           |          |   Scaled ||      Sum   |      VdW |       ES
+           |          |   Scaled ||      Sum   |      Vdw |     Elec
   --------------------------------------------------------------------
-  A_44:THR   B_84:ARG    5.9740       5.9740      -0.6210     6.5950 
-  A_44:THR   B_88:THR    0.1830       0.1830      -0.0240     0.2070 
-  B_84:ARG   B_88:THR    2.8200       2.8200      -0.3350     3.1550 
+  A_44:THR   B_84:ARG   -0.1959      -0.1959      -0.2489     0.0530 
+  A_44:THR   B_88:THR   -0.0221      -0.0221      -0.0244     0.0023 
+  B_84:ARG   B_88:THR   -0.6484      -0.6484      -0.6830     0.0346 
 
+                Total   -0.8664    -0.8664    -0.9563     0.0899

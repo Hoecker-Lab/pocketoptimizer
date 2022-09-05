@@ -1,0 +1,155 @@
+2022-09-05 15:22:24,727 - pocketoptimizer.ui - INFO - Logging to: /agh/projects/jakob/pocketoptimizer/tutorials/TrpR_IAA/pocketoptimizer.log
+2022-09-05 15:22:28,224 - pocketoptimizer.preparation.structure_building - INFO - Adding hydrogen atoms to the ligand according to pH: 7.
+2022-09-05 15:22:28,613 - pocketoptimizer.preparation.structure_building - INFO - Parameterize ligand for GAFF2.
+2022-09-05 15:22:28,890 - pocketoptimizer.preparation.structure_building - INFO - Ligand parametrization was successful.
+2022-09-05 15:22:30,765 - pocketoptimizer.ui - INFO - Start Protein Preparation.
+2022-09-05 15:22:30,768 - pocketoptimizer.preparation.structure_building - INFO - Starting protein preparation.
+2022-09-05 15:22:31,026 - pocketoptimizer.preparation.structure_building - INFO - Protonate protein according to pH: 7.
+2022-09-05 15:22:33,869 - pocketoptimizer.preparation.structure_building - INFO - Successfully prepared protein structure.
+2022-09-05 15:22:33,871 - pocketoptimizer.ui - INFO - Building complex before minimization.
+2022-09-05 15:22:34,059 - pocketoptimizer.preparation.structure_building - INFO - Build native complex.
+2022-09-05 15:22:34,644 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:22:34,959 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:22:38,021 - pocketoptimizer.preparation.minimize_structure - INFO - Starting potential energy: -613.4546210147854 kcal/mol.
+2022-09-05 15:23:04,354 - pocketoptimizer.preparation.minimize_structure - INFO - Ending potential energy: -6392.171238799054 kcal/mol.
+2022-09-05 15:23:04,501 - pocketoptimizer.preparation.minimize_structure - INFO - RMSD between minimized and unminimized structure: 0.8737 Å.
+2022-09-05 15:23:04,658 - pocketoptimizer.ui - INFO - Your protein was successfully minimized and can be used for design now.
+2022-09-05 15:23:04,659 - pocketoptimizer.ui - INFO - Protein preparation finished.
+2022-09-05 15:23:04,745 - pocketoptimizer.sampling.conformer_generator_obabel - INFO - Starting ligand conformer generation using obabel.
+2022-09-05 15:23:04,745 - pocketoptimizer.sampling.conformer_generator_obabel - INFO - Selected Method: genetic.
+2022-09-05 15:23:05,328 - pocketoptimizer.sampling.conformer_generator_obabel - INFO - Generated 50 conformers.
+2022-09-05 15:23:05,329 - pocketoptimizer.sampling.conformer_generator_obabel - INFO - Conformer sampling was successful.
+2022-09-05 15:23:05,336 - pocketoptimizer.ui - INFO - If design positions are removed or added a new design run should be started.
+2022-09-05 15:23:05,855 - pocketoptimizer.ui - INFO - Start building mutated protein scaffold variants.
+2022-09-05 15:23:05,856 - pocketoptimizer.ui - INFO - Build GLY sampling pockets.
+2022-09-05 15:23:06,535 - pocketoptimizer.preparation.structure_building - INFO - Build ligand sampling pocket.
+2022-09-05 15:23:07,369 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:07,763 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:09,379 - pocketoptimizer.preparation.structure_building - INFO - Build mutation: A_44_LEU.
+2022-09-05 15:23:10,126 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:10,438 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:12,029 - pocketoptimizer.preparation.structure_building - INFO - Build mutation: A_44_THR.
+2022-09-05 15:23:12,795 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:13,203 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:14,824 - pocketoptimizer.preparation.structure_building - INFO - Build mutation: B_84_ARG.
+2022-09-05 15:23:15,527 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:15,875 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:17,483 - pocketoptimizer.preparation.structure_building - INFO - Build mutation: B_88_LEU.
+2022-09-05 15:23:18,239 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:18,601 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:20,186 - pocketoptimizer.preparation.structure_building - INFO - Build mutation: B_88_THR.
+2022-09-05 15:23:20,945 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:21,269 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:22,855 - pocketoptimizer.preparation.structure_building - INFO - Build mutation combination: A_44_LEU_B_84_ARG.
+2022-09-05 15:23:23,538 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:23,875 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:25,413 - pocketoptimizer.preparation.structure_building - INFO - Build mutation combination: A_44_THR_B_84_ARG.
+2022-09-05 15:23:26,059 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:26,422 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:28,023 - pocketoptimizer.preparation.structure_building - INFO - Build mutation combination: A_44_LEU_B_88_LEU.
+2022-09-05 15:23:29,109 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:29,505 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:31,123 - pocketoptimizer.preparation.structure_building - INFO - Build mutation combination: A_44_LEU_B_88_THR.
+2022-09-05 15:23:31,780 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:32,092 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:33,726 - pocketoptimizer.preparation.structure_building - INFO - Build mutation combination: A_44_THR_B_88_LEU.
+2022-09-05 15:23:34,405 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:34,704 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:36,285 - pocketoptimizer.preparation.structure_building - INFO - Build mutation combination: A_44_THR_B_88_THR.
+2022-09-05 15:23:36,985 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:37,362 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:38,917 - pocketoptimizer.preparation.structure_building - INFO - Build mutation combination: B_84_ARG_B_88_LEU.
+2022-09-05 15:23:39,556 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:39,846 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:41,428 - pocketoptimizer.preparation.structure_building - INFO - Build mutation combination: B_84_ARG_B_88_THR.
+2022-09-05 15:23:42,204 - pocketoptimizer.preparation.structure_building - INFO - Starting the build.
+2022-09-05 15:23:42,530 - pocketoptimizer.preparation.structure_building - INFO - Finished building.
+2022-09-05 15:23:44,133 - pocketoptimizer.ui - INFO - Scaffold building done.
+2022-09-05 15:23:45,982 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Start rotamer sampling procedure using FFEvaluate.
+2022-09-05 15:23:45,983 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Using 8 CPU's for multiprocessing.
+2022-09-05 15:23:46,802 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Rotamers for residue: A_44_LEU not sampled yet.
+2022-09-05 15:23:57,879 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Writing 27/64 rotamers within energy threshold of 100 kcal/mol for LEU at position: A_44.
+2022-09-05 15:23:57,895 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Rotamers for residue: A_44_THR not sampled yet.
+2022-09-05 15:24:05,629 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Writing 6/10 rotamers within energy threshold of 100 kcal/mol for THR at position: A_44.
+2022-09-05 15:24:05,639 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Rotamers for residue: B_84_ARG not sampled yet.
+2022-09-05 15:24:34,705 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Writing 328/370 rotamers within energy threshold of 100 kcal/mol for ARG at position: B_84.
+2022-09-05 15:24:34,750 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Rotamers for residue: B_88_LEU not sampled yet.
+2022-09-05 15:24:44,744 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Writing 23/55 rotamers within energy threshold of 100 kcal/mol for LEU at position: B_88.
+2022-09-05 15:24:44,755 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Rotamers for residue: B_88_THR not sampled yet.
+2022-09-05 15:24:52,895 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Writing 6/10 rotamers within energy threshold of 100 kcal/mol for THR at position: B_88.
+2022-09-05 15:24:52,912 - pocketoptimizer.sampling.sidechain_rotamers_ffev - INFO - Rotamer sampling procedure is finished.
+2022-09-05 15:24:52,970 - pocketoptimizer.ui - INFO - Sample ligand poses.
+2022-09-05 15:24:52,972 - pocketoptimizer.sampling.ligand_poses - INFO - Start ligand pose sampling procedure.
+2022-09-05 15:24:54,389 - pocketoptimizer.sampling.ligand_poses - INFO - Generate possible poses within the defined grid.
+2022-09-05 15:24:54,474 - pocketoptimizer.sampling.ligand_poses - INFO - Created possible 4641 poses.
+2022-09-05 15:24:54,474 - pocketoptimizer.sampling.ligand_poses - INFO - Start filtering poses.
+2022-09-05 15:24:54,475 - pocketoptimizer.sampling.ligand_poses - INFO - Using 8 CPUs for multiprocessing.
+2022-09-05 15:27:24,079 - pocketoptimizer.sampling.ligand_poses - INFO - Calculated 1099 poses within energy threshold of 100 kcal/mol.
+2022-09-05 15:27:24,117 - pocketoptimizer.sampling.ligand_poses - INFO - Pose sampling procedure was successful.
+2022-09-05 15:27:24,208 - pocketoptimizer.ui - INFO - Start energy calculations.
+2022-09-05 15:27:24,208 - pocketoptimizer.ui - INFO - Using 8 CPUs for multiprocessing.
+2022-09-05 15:27:24,209 - pocketoptimizer.ui - INFO - Calculate Sidechain-Scaffold Energies.
+2022-09-05 15:27:24,210 - pocketoptimizer.scoring.sidechain_scaffold_energies - INFO - Compute energies using forcefield: amber_ff14SB.
+2022-09-05 15:27:24,289 - pocketoptimizer.scoring.sidechain_scaffold_energies - INFO - Sidechain-Scaffold/Self interaction energy for residue: A_44_LEU not computed yet.
+2022-09-05 15:27:32,174 - pocketoptimizer.scoring.sidechain_scaffold_energies - INFO - Sidechain-Scaffold/Self interaction energy for residue: A_44_THR not computed yet.
+2022-09-05 15:27:39,669 - pocketoptimizer.scoring.sidechain_scaffold_energies - INFO - Sidechain-Scaffold/Self interaction energy for residue: B_84_ARG not computed yet.
+2022-09-05 15:27:56,723 - pocketoptimizer.scoring.sidechain_scaffold_energies - INFO - Sidechain-Scaffold/Self interaction energy for residue: B_88_LEU not computed yet.
+2022-09-05 15:28:04,455 - pocketoptimizer.scoring.sidechain_scaffold_energies - INFO - Sidechain-Scaffold/Self interaction energy for residue: B_88_THR not computed yet.
+2022-09-05 15:28:11,312 - pocketoptimizer.scoring.sidechain_scaffold_energies - INFO - Sidechain-Scaffold/Self calculation was successful.
+2022-09-05 15:28:11,313 - pocketoptimizer.ui - INFO - Calculate Sidechain-Pair Energies.
+2022-09-05 15:28:11,314 - pocketoptimizer.scoring.sidechain_pair_energies - INFO - Compute energies using forcefield: amber_ff14SB.
+2022-09-05 15:28:11,900 - pocketoptimizer.scoring.sidechain_pair_energies - INFO - Sidechain-Sidechain interaction energy for residue pair: A_44_LEU/B_84_ARG not computed yet.
+2022-09-05 15:31:04,669 - pocketoptimizer.scoring.sidechain_pair_energies - INFO - Sidechain-Sidechain interaction energy for residue pair: A_44_THR/B_84_ARG not computed yet.
+2022-09-05 15:31:44,916 - pocketoptimizer.scoring.sidechain_pair_energies - INFO - Sidechain-Sidechain interaction energy for residue pair: A_44_LEU/B_88_LEU not computed yet.
+2022-09-05 15:32:05,307 - pocketoptimizer.scoring.sidechain_pair_energies - INFO - Sidechain-Sidechain interaction energy for residue pair: A_44_LEU/B_88_THR not computed yet.
+2022-09-05 15:32:15,996 - pocketoptimizer.scoring.sidechain_pair_energies - INFO - Sidechain-Sidechain interaction energy for residue pair: A_44_THR/B_88_LEU not computed yet.
+2022-09-05 15:32:25,815 - pocketoptimizer.scoring.sidechain_pair_energies - INFO - Sidechain-Sidechain interaction energy for residue pair: A_44_THR/B_88_THR not computed yet.
+2022-09-05 15:32:34,167 - pocketoptimizer.scoring.sidechain_pair_energies - INFO - Sidechain-Sidechain interaction energy for residue pair: B_84_ARG/B_88_LEU not computed yet.
+2022-09-05 15:35:03,583 - pocketoptimizer.scoring.sidechain_pair_energies - INFO - Sidechain-Sidechain interaction energy for residue pair: B_84_ARG/B_88_THR not computed yet.
+2022-09-05 15:35:44,059 - pocketoptimizer.scoring.sidechain_pair_energies - INFO - Sidechain-Pair calculation was successful.
+2022-09-05 15:35:44,061 - pocketoptimizer.ui - INFO - Calculate Ligand-Scaffold/Sidechain-Interaction-Energies.
+2022-09-05 15:35:44,062 - pocketoptimizer.scoring.smina_scorer - INFO - Score ligand interactions using vina.
+2022-09-05 15:35:45,399 - pocketoptimizer.scoring.smina_scorer - INFO - Ligand-Scaffold/Self interaction energy not computed yet.
+2022-09-05 15:35:45,400 - pocketoptimizer.scoring.smina_scorer - INFO - Prepare fixed scaffold.
+2022-09-05 15:35:47,751 - pocketoptimizer.scoring.smina_scorer - INFO - Ligand-Sidechain interaction energy for residue: A_44_LEU not computed yet.
+2022-09-05 15:35:47,886 - pocketoptimizer.scoring.smina_scorer - INFO - Loop over rotamers of residue: A_44_LEU.
+2022-09-05 15:36:13,368 - pocketoptimizer.scoring.smina_scorer - INFO - Ligand-Sidechain interaction energy for residue: A_44_THR not computed yet.
+2022-09-05 15:36:13,411 - pocketoptimizer.scoring.smina_scorer - INFO - Loop over rotamers of residue: A_44_THR.
+2022-09-05 15:36:18,936 - pocketoptimizer.scoring.smina_scorer - INFO - Ligand-Sidechain interaction energy for residue: B_84_ARG not computed yet.
+2022-09-05 15:36:19,736 - pocketoptimizer.scoring.smina_scorer - INFO - Loop over rotamers of residue: B_84_ARG.
+2022-09-05 15:41:17,807 - pocketoptimizer.scoring.smina_scorer - INFO - Ligand-Sidechain interaction energy for residue: B_88_LEU not computed yet.
+2022-09-05 15:41:17,942 - pocketoptimizer.scoring.smina_scorer - INFO - Loop over rotamers of residue: B_88_LEU.
+2022-09-05 15:41:38,657 - pocketoptimizer.scoring.smina_scorer - INFO - Ligand-Sidechain interaction energy for residue: B_88_THR not computed yet.
+2022-09-05 15:41:38,697 - pocketoptimizer.scoring.smina_scorer - INFO - Loop over rotamers of residue: B_88_THR.
+2022-09-05 15:41:44,169 - pocketoptimizer.scoring.smina_scorer - INFO - Ligand scoring was successful.
+2022-09-05 15:41:44,170 - pocketoptimizer.ui - INFO - Energy calculation was successful.
+2022-09-05 15:41:50,299 - pocketoptimizer.solving.sontag_solver - INFO - Calculating Solutions.
+2022-09-05 15:42:44,146 - pocketoptimizer.ui - INFO - Parse calculated solutions.
+2022-09-05 15:42:44,528 - pocketoptimizer.ui - INFO - Read 10 solution(s) from solver output.
+2022-09-05 15:42:48,397 - pocketoptimizer.ui - INFO - Write text report.
+2022-09-05 15:42:48,449 - pocketoptimizer.ui - INFO - Wrote solution report text file(s).
+2022-09-05 15:42:48,452 - pocketoptimizer.ui - INFO - Wrote summary text file.
+2022-09-05 15:42:48,453 - pocketoptimizer.ui - INFO - Write html report.
+2022-09-05 15:42:48,538 - pocketoptimizer.ui - INFO - Wrote solution report html file(s).
+2022-09-05 15:42:48,539 - pocketoptimizer.design.html_reporter - INFO - Create energy plot.
+2022-09-05 15:42:49,027 - pocketoptimizer.design.html_reporter - INFO - Create sequence logo for mutable positions.
+2022-09-05 15:42:50,065 - pocketoptimizer.ui - INFO - Wrote summary html file.
+2022-09-05 15:42:50,065 - pocketoptimizer.ui - INFO - Creating design structure files.
+2022-09-05 15:42:50,066 - pocketoptimizer.ui - INFO - Create Structures.
+2022-09-05 15:42:59,196 - pocketoptimizer.ui - INFO - Creating PyMol scripts.
+2022-09-05 15:42:59,218 - pocketoptimizer.ui - INFO - 10 best design solution(s) for design with forcefield: amber_ff14SB, scoring method: vina and ligand scaling: 20 identified.
+2022-09-05 15:45:02,633 - pocketoptimizer.solving.sontag_solver - INFO - Calculating Solutions.
+2022-09-05 15:45:59,013 - pocketoptimizer.ui - INFO - Parse calculated solutions.
+2022-09-05 15:45:59,417 - pocketoptimizer.ui - INFO - Read 10 solution(s) from solver output.
+2022-09-05 15:46:03,293 - pocketoptimizer.ui - INFO - Write text report.
+2022-09-05 15:46:03,339 - pocketoptimizer.ui - INFO - Wrote solution report text file(s).
+2022-09-05 15:46:03,342 - pocketoptimizer.ui - INFO - Wrote summary text file.
+2022-09-05 15:46:03,342 - pocketoptimizer.ui - INFO - Write html report.
+2022-09-05 15:46:03,421 - pocketoptimizer.ui - INFO - Wrote solution report html file(s).
+2022-09-05 15:46:03,423 - pocketoptimizer.design.html_reporter - INFO - Create energy plot.
+2022-09-05 15:46:03,792 - pocketoptimizer.design.html_reporter - INFO - Create sequence logo for mutable positions.
+2022-09-05 15:46:04,235 - pocketoptimizer.ui - INFO - Wrote summary html file.
+2022-09-05 15:46:04,236 - pocketoptimizer.ui - INFO - Creating design structure files.
+2022-09-05 15:46:04,237 - pocketoptimizer.ui - INFO - Create Structures.
+2022-09-05 15:46:14,087 - pocketoptimizer.ui - INFO - Creating PyMol scripts.
+2022-09-05 15:46:14,106 - pocketoptimizer.ui - INFO - 10 best design solution(s) for design with forcefield: amber_ff14SB, scoring method: vina and ligand scaling: 5 identified.

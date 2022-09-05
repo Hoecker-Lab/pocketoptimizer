@@ -4,6 +4,7 @@ channels:
   - defaults
   - acellera
   - bioconda
+  - psi4
 dependencies:
   - htmd
   - smina
@@ -11,5 +12,3 @@ dependencies:
   - weblogo
   - ffevaluation
   - pip
-  - pip:
-    - pocketoptimizer

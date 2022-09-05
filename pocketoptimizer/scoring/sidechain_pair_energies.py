@@ -12,7 +12,7 @@ from tqdm.auto import tqdm
 logger = logging.getLogger(__name__)
 
 
-def calculate_energy(ids: Tuple[int], structure: Molecule, ffev: FFEvaluate, res_a_coords: np.ndarray, res_b_coords: np.ndarray,\
+def calculate_energy(ids: Tuple[int], struc: Molecule, ffev: FFEvaluate, res_a_coords: np.ndarray, res_b_coords: np.ndarray,\
                      resid_a: str, resid_b: str, chain_a: str, chain_b: str) -> Tuple[np.float]:
     """
     Calculating the energy between two rotamers at two different positions
@@ -45,9 +45,9 @@ def calculate_energy(ids: Tuple[int], structure: Molecule, ffev: FFEvaluate, res
     Tuple with energy components
 
     """
-    structure.set('coords', res_a_coords[:, :, ids[0]], f'chain {chain_a} and resid {resid_a}')
-    structure.set('coords', res_b_coords[:, :, ids[1]], f'chain {chain_b} and resid {resid_b}')
-    energies = ffev.calculateEnergies(structure.coords)
+    struc.set('coords', res_a_coords[:, :, ids[0]], f'chain {chain_a} and resid {resid_a}')
+    struc.set('coords', res_b_coords[:, :, ids[1]], f'chain {chain_b} and resid {resid_b}')
+    energies = ffev.calculateEnergies(struc.coords)
     return energies['vdw'], energies['elec'] * 0.01
 
 
@@ -90,7 +90,7 @@ def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, 
         # Check if pairwise-interaction energy files already exists
         outfile = os.path.join(output_dir,f'{chain_a}_{resid_a}_{resname_a}_{chain_b}_{resid_b}_{resname_b}.csv')
         if os.path.isfile(outfile):
-            logger.info(f'Sidechain-Sidechain-Interaction-Energies for Residue-Pair: {chain_a}_{resid_a}_{resname_a}/{chain_b}_{resid_b}_{resname_b} already computed.')
+            logger.info(f'Sidechain-Sidechain interaction energy for residue pair: {chain_a}_{resid_a}_{resname_a}/{chain_b}_{resid_b}_{resname_b} already computed.')
             continue
         # Create Molecule object from rotamers of each residue
         # Check if rotamers are computed for all mutations
@@ -115,7 +115,7 @@ def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, 
             raise FileNotFoundError(f'Missing pairwise mutated structure for mutation combination: {chain_a}_{resid_a}_{resname_a}_{chain_b}_{resid_b}_{resname_b}.')
 
         logger.info(
-            f'Sidechain-Sidechain-Interaction-Energies for Residue-Pair: {chain_a}_{resid_a}_{resname_a}/{chain_b}_{resid_b}_{resname_b} not computed yet.')
+            f'Sidechain-Sidechain interaction energy for residue pair: {chain_a}_{resid_a}_{resname_a}/{chain_b}_{resid_b}_{resname_b} not computed yet.')
 
         struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=forcefield)
 
@@ -141,7 +141,7 @@ def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, 
                     f'{chain_b}_{resid_b}_{resname_b}')
                 for index, energy in enumerate(pool.imap(partial(
                         calculate_energy,
-                        structure=struc.copy(),
+                        struc=struc.copy(),
                         ffev=ffev,
                         res_a_coords=res_a.coords,
                         res_b_coords=res_b.coords,
@@ -157,7 +157,7 @@ def calculate_pairs(work_dir: str, rotamer_path: str, mutations: List[Dict[str, 
                 # Save data as csv
                 write_energies(outpath=outfile,
                                energies=pair_nrgs,
-                               energy_terms=['VdW', 'ES'],
+                               energy_terms=['Vdw', 'Elec'],
                                name_a=resname_a,
                                nconfs_a=nconfs_a,
                                name_b=resname_b,

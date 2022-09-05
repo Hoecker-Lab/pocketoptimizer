@@ -131,7 +131,8 @@ class FFRotamerSampler:
 
         return rotamers
 
-    def expand_dunbrack(self, rotamers: List[Dict[str, float or List[int or float]]], expand: List[str] = ['chi1', 'chi2']) -> List[Tuple[float]]:
+    @staticmethod
+    def expand_dunbrack(rotamers: List[Dict[str, float or List[int or float]]], expand: List[str] = ['chi1', 'chi2']) -> List[Tuple[float]]:
         """
         Expands defined chi-angles by +/- 2 Std
 
@@ -198,7 +199,7 @@ class FFRotamerSampler:
 
         Returns
         -------
-        Returns vdW energy
+        Returns vdw energy
         """
         # Set coordinates of side chain to coordinates from rotamer
         structure.set('coords', res_coords[:, :, rot_id], f'resid {resid} and chain {chain}')
@@ -394,7 +395,7 @@ class FFRotamerSampler:
 
                 write_energies(outpath=rotamer_energy_file,
                                energies=energies,
-                               energy_terms=['VdW'],
+                               energy_terms=['Vdw'],
                                name_a=resname,
                                nconfs_a=nrots)
 
