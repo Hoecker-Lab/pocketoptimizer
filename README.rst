@@ -19,7 +19,7 @@ If you want to use PocketOptimizer you can clone the GitHub repository and set u
 
     git clone https://github.com/Hoecker-Lab/pocketoptimizer
 
-    cd /YOUR_PATH/PocketOptimizer2
+    cd /YOUR_PATH/pocketoptimizer
 
 The repository contains an environment.yml file that holds information about all
 dependencies and versions required for PocketOptimizer. By typing:
