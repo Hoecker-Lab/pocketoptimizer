@@ -394,12 +394,13 @@ class TxtReporter:
         else:
             self._write_simple_self_report(solution_index, out_file)
 
-        out_file.write(' PAIRWISE ENERGIES\n (Interactions between flexible sidechains)'
-                       '\n\n')
-        if self._solutions.has_detailed_pair_energies():
-            self._write_detailed_pair_report(solution_index, out_file)
-        else:
-            self._write_simple_pair_report(solution_index, out_file)
+        if len(self._sidechain_positions) > 1:
+            out_file.write(' PAIRWISE ENERGIES\n (Interactions between flexible sidechains)'
+                           '\n\n')
+            if self._solutions.has_detailed_pair_energies():
+                self._write_detailed_pair_report(solution_index, out_file)
+            else:
+                self._write_simple_pair_report(solution_index, out_file)
 
     def create_reports(self) -> NoReturn:
         """
