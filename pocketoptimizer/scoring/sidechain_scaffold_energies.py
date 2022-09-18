@@ -1,195 +1,174 @@
 import multiprocessing as mp
 import os
 from functools import partial
-from typing import Tuple, List, Dict, Union, NoReturn
+from typing import Tuple, NoReturn
 import logging
 import numpy as np
 from ffevaluation.ffevaluate import FFEvaluate
 from moleculekit.molecule import Molecule
 from tqdm.auto import tqdm
 
+from pocketoptimizer.utility.utils import Storer
+
 logger = logging.getLogger(__name__)
 
 
-def calculate_energy(id: int, struc: Molecule, ffev: FFEvaluate, res_coords: np.ndarray, resid: str, chain: str) -> Tuple[np.float]:
+class SidechainSelfScorer(Storer):
     """
-    Calculating the energy between a rotamer and the fixed protein scaffold
-
-    Parameters
-    ----------
-    id: int
-        Index of current rotamer
-    struc: :class: moleculekit.molecule.Molecule
-        Object containing all rotamers as frames
-    ffev: :class: ffevaluation.ffevaluate.FFEvaluate
-        Object created for respective forcefield from parameter file
-        between sets fixed_selection and variable_selection,
-        where energies can be calculated from
-    res_coords: np.ndarray
-        Coordinates of the rotamers
-    resid: str
-        Residue ID of the mutated residue
-    chain: str
-        Chain ID of the mutated residue
-
-    Returns
-    -------
-    Tuple with energy components
+    Scorer class for sidechain/scaffold interactions
+    Utilizing molecular dynamics binding energy related computations
+    Requires built complexes
     """
+    def __int__(self, **kwargs):
+        super().__init__(**kwargs)
 
-    # Set coordinates to current rotamer
-    struc.set('coords', res_coords[:, :, id], f'chain {chain} and resid {resid}')
-    energies = ffev.calculateEnergies(struc.coords)
-    return energies['vdw'], energies['elec'] * 0.01
+    def calculate_energy(self, id: int, struc: Molecule, ffev: FFEvaluate,
+                         res_coords: np.ndarray, resid: str, chain: str, intra: bool) -> Tuple[np.float]:
+        """
+        Calculating the energy between a rotamer and a fixed protein scaffold, or
+        calculate the internal energy
 
+        Parameters
+        ----------
+        id: int
+            Index of current rotamer
+        struc: :class: moleculekit.molecule.Molecule
+            Object containing all rotamers as frames
+        ffev: :class: ffevaluation.ffevaluate.FFEvaluate
+            Object created for respective forcefield from parameter file
+            between sets fixed_selection and variable_selection,
+            where energies can be calculated from
+        res_coords: np.ndarray
+            Coordinates of the rotamers
+        resid: str
+            Residue ID of the mutated residue
+        chain: str
+            Chain ID of the mutated residue
+        intra:
+            Whether to calculate the internal energy of a rotamer
 
-def calculate_internal_energy(id: int, struc: Molecule, ffev: FFEvaluate, res_coords: np.ndarray, resid: str, chain: str) -> Tuple[np.float]:
-    """
-    Calculates the internal energy of a rotamer
+        Returns
+        -------
+        Tuple with energy components
+        """
 
-    Parameters
-    ----------
-    id: int
-        Index of current rotamer
-    struc: :class: moleculekit.molecule.Molecule
-        Object containing all rotamers as frames
-    ffev: :class: ffevaluation.ffevaluate.FFEvaluate
-        Object created for respective forcefield from parameter file
-        between sets fixed_selection and variable_selection,
-        where energies can be calculated from
-    res_coords: np.ndarray
-        Coordinates of the rotamers
-    resid: str
-        Residue ID of the mutated residue
-    chain: str
-        Chain ID of the mutated residue
+        # Set coordinates to current rotamer
+        struc.set('coords', res_coords[:, :, id], f'chain {chain} and resid {resid}')
+        energies = ffev.calculateEnergies(struc.coords)
+        if not intra:
+            return energies['vdw'], energies['elec'] * self.elec
+        else:
+            return energies['bond'], energies['angle'], energies['dihedral'], energies['improper'], energies['vdw'], energies['elec']
 
-    Returns
-    -------
-    Tuple with energy components
-    """
+    def calculate_scaffold(self) -> NoReturn:
+        """
+        Wrapper function to calculate sidechain/scaffold energies using
+        molecular mechanics force field energy calculations
+        """
+        from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
+        from pocketoptimizer.utility.molecule_types import backbone_atoms
 
-    # Set coordinates to current rotamer
-    struc.set('coords', res_coords[:, :, id], f'chain {chain} and resid {resid}')
-    energies = ffev.calculateEnergies(struc.coords)
+        logger.info(f'Compute energies using forcefield: {self.forcefield}.')
 
-    return energies['bond'], energies['angle'], energies['dihedral'], energies['improper'], energies['vdw'], energies['elec'] * 0.01
+        os.makedirs(self.side_scaff, exist_ok=True)
 
+        for position in self.mutations:
+            chain, resid = position['chain'], position['resid']
+            for resname in position['mutations']:
+                # Check if self-interaction energy file already exists
+                outfile = os.path.join(self.side_scaff, f'{chain}_{resid}_{resname}.csv')
+                if os.path.isfile(outfile):
+                    logger.info(
+                        f'Sidechain-Scaffold/Self interaction energy for residue: {chain}_{resid}_{resname} already computed.')
+                    continue
+                # Create Molecule object from rotamers of each residue
+                # Check if rotamers are computed for all mutations
+                try:
+                    mol = Molecule(os.path.join(self.rotamer_path, f'{chain}_{resid}', f'{resname}.pdb'))
+                except FileNotFoundError:
+                    logger.error(f'Missing rotamer for residue: {chain}_{resid}_{resname}.')
+                    raise FileNotFoundError(f'Missing rotamer for residue: {chain}_{resid}_{resname}.')
 
-def calculate_scaffold(work_dir: str, rotamer_path: str, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str, ncpus: int = 1) -> NoReturn:
-    """
-    Wrapper function to calculate sidechain scaffold energies using molecular mechanics force field energy computation
+                # get number of rotamers
+                nconfs = mol.coords.shape[-1]
 
-    Parameters
-    ----------
-    work_dir: str
-        Path to working directory
-    rotamer_path: str
-        Path containing sidechain rotamer .pdb files
-    mutations: List[Dict]
-        List of dictionaries defining the mutations at different positions
-    forcefield: str
-        Forcefield to use for scoring
-    ncpus: int
-        Number of CPUs to use for sidechain scaffold scoring [default: 1]
-    """
-    from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
-    from pocketoptimizer.utility.molecule_types import backbone_atoms
+                # get paths to mutated scaffolds
+                structure_path = os.path.join(self.work_dir, 'scaffold', self.forcefield,
+                                              'protein_params', f'{chain}_{resid}_{resname}')
 
-    logger.info(f'Compute energies using forcefield: {forcefield}.')
+                # Check if directories containing single mutated scaffolds are existing
+                if not os.path.isfile(os.path.join(structure_path, 'structure.pdb')):
+                    logger.error(f'Missing single mutated structure for mutation: {chain}_{resid}_{resname}.')
+                    raise FileNotFoundError(f'Missing single mutated structure for mutation: {chain}_{resid}_{resname}.')
 
-    output_dir = os.path.join(work_dir, 'energies', f'{forcefield}_{rotamer_path.split("/")[-1]}', f'sidechain_scaffold_{forcefield}')
-    os.makedirs(output_dir, exist_ok=True)
+                logger.info(f'Sidechain-Scaffold/Self interaction energy for residue: {chain}_{resid}_{resname} not computed yet.')
 
-    for position in mutations:
-        chain, resid = position['chain'], position['resid']
-        for resname in position['mutations']:
-            # Check if self-interaction energy file already exists
-            outfile = os.path.join(output_dir, f'{chain}_{resid}_{resname}.csv')
-            if os.path.isfile(outfile):
-                logger.info(
-                    f'Sidechain-Scaffold/Self interaction energy for residue: {chain}_{resid}_{resname} already computed.')
-                continue
-            # Create Molecule object from rotamers of each residue
-            # Check if rotamers are computed for all mutations
-            try:
-                mol = Molecule(os.path.join(rotamer_path, f'{chain}_{resid}', f'{resname}.pdb'))
-            except FileNotFoundError:
-                logger.error(f'Missing rotamer for residue: {chain}_{resid}_{resname}.')
-                raise FileNotFoundError(f'Missing rotamer for residue: {chain}_{resid}_{resname}.')
+                # Read in structure and parameters
+                struc, prm = load_ff_parameters(structure_path=structure_path,
+                                                forcefield=self.forcefield)
+                struc.remove('segid L', _logger=False)
 
-            # get number of rotamers
-            nconfs = mol.coords.shape[-1]
+                # Select only the mutated residues without backbone
+                variable_selection = f'chain {chain} and resid {resid} and not ({backbone_atoms})'
+                # Select all except the flexible side-chains, dont select the backbone because of high Vdw energies
+                fixed_selection = f'not segid L and not (chain {chain} and resid {resid} or '
+                for res in self.mutations:
+                    flex_chain, flex_res = res['chain'], res['resid']
+                    if flex_chain != chain or flex_res != resid:
+                        # Exclude all other mutated sidechains on different positions, since scored seperately
+                        fixed_selection += f'chain {flex_chain} and resid {flex_res} and not ({backbone_atoms}) or '
+                fixed_selection = fixed_selection[0:-4] + ')'
 
-            # get paths to mutated scaffolds
-            structure_path = os.path.join(work_dir, 'scaffold', forcefield, 'protein_params', f'{chain}_{resid}_{resname}')
+                # Generate FFEvaluate object for scoring between sidechain and rest of protein without sidechain
+                ffev = FFEvaluate(struc, prm, betweensets=(fixed_selection, variable_selection))
 
-            # Check if directories containing single mutated scaffolds are existing
-            if not os.path.isfile(os.path.join(structure_path, 'structure.pdb')):
-                logger.error(f'Missing single mutated structure for mutation: {chain}_{resid}_{resname}.')
-                raise FileNotFoundError(f'Missing single mutated structure for mutation: {chain}_{resid}_{resname}.')
+                if self.intra:
+                    energy_terms = ['Bond', 'Angle', 'Dihedral', 'Improper', 'Vdw', 'Elec']
+                else:
+                    energy_terms = ['Vdw', 'Elec']
 
-            logger.info(f'Sidechain-Scaffold/Self interaction energy for residue: {chain}_{resid}_{resname} not computed yet.')
+                self_nrgs = np.zeros((nconfs, len(energy_terms)))
 
-            # Read in structure and parameters
-            struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=forcefield)
+                with mp.Pool(processes=self.ncpus) as pool:
+                    with tqdm(total=nconfs) as pbar:
+                        pbar.set_description(f'{chain}_{resid}_{resname}/Scaffold')
+                        for index, energy in enumerate(pool.imap(partial(
+                                self.calculate_energy,
+                                struc=struc,
+                                ffev=ffev,
+                                res_coords=mol.coords,
+                                resid=resid,
+                                chain=chain,
+                                intra=False), np.arange(nconfs),
+                                chunksize=calculate_chunks(nposes=nconfs, ncpus=self.ncpus))):
+                            self_nrgs[index, -2:] = energy
+                            pbar.update()
 
-            # Select only the mutated residues without backbone
-            variable_selection = f'chain {chain} and resid {resid} and not ({backbone_atoms})'
-            # Select all except the flexible side-chains, dont select the backbone because of high Vdw energies
-            fixed_selection = f'not segid L and not (chain {chain} and resid {resid} or '
-            for res in mutations:
-                flex_chain, flex_res = res['chain'], res['resid']
-                if flex_chain != chain or flex_res != resid:
-                    # Exclude all other mutated sidechains on different positions, since scored seperately
-                    fixed_selection += f'chain {flex_chain} and resid {flex_res} and not ({backbone_atoms}) or '
-            fixed_selection = fixed_selection[0:-4] + ')'
+                if self.intra:
+                    # Generate FFEvaluate object for scoring sidechain conformation itself
+                    struc.filter(f'chain {chain} and resid {resid}', _logger=False)
+                    ffev = FFEvaluate(struc, prm)
 
-            # Generate FFEvaluate object for scoring between sidechain and rest of protein without sidechain
-            ffev = FFEvaluate(struc, prm, betweensets=(fixed_selection, variable_selection))
+                    with mp.Pool(processes=self.ncpus) as pool:
+                        with tqdm(total=nconfs) as pbar:
+                            pbar.set_description(f'{chain}_{resid}_{resname}_Internal')
+                            for index, energy in enumerate(pool.imap(partial(
+                                    self.calculate_energy,
+                                    struc=struc.copy(),
+                                    ffev=ffev,
+                                    res_coords=mol.coords,
+                                    resid=resid,
+                                    chain=chain,
+                                    intra=True), np.arange(nconfs),
+                                    chunksize=calculate_chunks(nposes=nconfs, ncpus=self.ncpus))):
+                                self_nrgs[index] += energy
+                                pbar.update()
 
-            #self_nrgs = np.zeros((nconfs, 6))
-            self_nrgs = np.zeros((nconfs, 2))
+                # Save data as csv
+                write_energies(outpath=outfile,
+                               energies=self_nrgs,
+                               energy_terms=energy_terms,
+                               name_a=resname,
+                               nconfs_a=nconfs)
 
-            with mp.Pool(processes=ncpus) as pool:
-                with tqdm(total=nconfs) as pbar:
-                    pbar.set_description(f'{chain}_{resid}_{resname}/Scaffold')
-                    for index, energy in enumerate(pool.imap(partial(
-                            calculate_energy,
-                            struc=struc.copy(),
-                            ffev=ffev,
-                            res_coords=mol.coords,
-                            resid=resid,
-                            chain=chain), np.arange(nconfs),
-                            chunksize=calculate_chunks(nposes=nconfs, ncpus=ncpus))):
-                        #self_nrgs[index, -2:] = energy
-                        self_nrgs[index] = energy
-                        pbar.update()
-
-            # Generate FFEvaluate object for scoring sidechain conformation itself
-            #struc.filter(f'chain {chain} and resid {resid}', _logger=False)
-            #ffev = FFEvaluate(struc, prm)
-
-            #with mp.Pool(processes=ncpus) as pool:
-                #with tqdm(total=nconfs) as pbar:
-                    #pbar.set_description(f'{chain}_{resid}_{resname}_Internal')
-                    #for index, energy in enumerate(pool.imap(partial(
-                            #calculate_internal_energy,
-                            #struc=struc.copy(),
-                            #ffev=ffev,
-                            #res_coords=mol.coords,
-                            #resid=resid,
-                            #chain=chain), np.arange(nconfs),
-                            #chunksize=calculate_chunks(nposes=nconfs, ncpus=ncpus))):
-                        #self_nrgs[index] += energy
-                        #pbar.update()
-
-            # Save data as csv
-            write_energies(outpath=outfile,
-                           energies=self_nrgs,
-                           #energy_terms=['Bond', 'Angle', 'Dihedral', 'Improper', 'Vdw', 'Elec'],
-                           energy_terms=['Vdw', 'Elec'],
-                           name_a=resname,
-                           nconfs_a=nconfs)
-
-    logger.info('Sidechain-Scaffold/Self calculation was successful.')
+        logger.info('Sidechain-Scaffold/Self calculation was successful.')

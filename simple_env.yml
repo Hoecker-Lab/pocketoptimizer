@@ -5,6 +5,7 @@ channels:
   - acellera
   - bioconda
   - psi4
+  - omnia
 dependencies:
   - htmd
   - smina

@@ -7,7 +7,7 @@ protein-ligand binding design.
 - **API** -- Python 3.9 and workflow interface
 - **Minimization** -- GPU based minimization through `OpenMM <https://openmm.org/>`_
 - **Force Fields** -- `Amber ff14SB <https://pubs.acs.org/doi/10.1021/acs.jctc.5b00255>`_ and `CHARMM36 <https://pubmed.ncbi.nlm.nih.gov/23832629/>`_
-- **Scoring Functions** -- Binding interaction scoring with `Smina <https://github.com/mwojcikowski/smina>`_ (empirical) or `FFevaluate <https://software.acellera.com/docs/latest/htmd/tutorials/FFEvaluate.html>`_ (physics-based)
+- **Scoring Functions** -- Binding interaction scoring with `Smina <https://github.com/mwojcikowski/smina>`_ (empirical) or `FFEvaluate <https://software.acellera.com/docs/latest/htmd/tutorials/FFEvaluate.html>`_ (physics-based)
 - **Deterministic** -- Linear programming is applied to find the Global Minimum Energy Conformation (GMEC) in a given set
 
 Installation via the Repository
@@ -172,10 +172,12 @@ the following lines:
 
     # Initialize PocketOptimizer
 
-    # Set the Path to your working directory which contains the scaffold and ligand folder
-    # Set a pH value or use the default value of 7.2
-    # Select a force field (either: charmm36 or amber_ff14SB)
-    design = po.DesignPipeline(work_dir='YOUR_PROJECT_PATH', ph=pH_VALUE, forcefield='YOUR_FORCEFIELD', ncpus=8)
+    design = po.DesignPipeline(work_dir='YOUR_PROJECT_PATH', # Path to working directory containing scaffold and ligand subdirectory
+                               ph=pH_VALUE,                  # pH used for protein and ligand protonation
+                               forcefield='YOUR_FORCEFIELD', # forcefield used for all energy computations
+                               intra=False,                  # Whether to score intramolecular energies or not
+                               elec=0.01,                    # Scaling factor for electrostatic energies
+                               ncpus=8)                      # Number of CPUs for multiprocessing
 
 While you are initializing you can define a pH, used for protonating the side chains of the protein and also the ligand molecule.
 Additionally, PocketOptimizer has two force fields implemented, the AMBER ff14SB and the CHARMM36 force field.
@@ -218,6 +220,7 @@ PocketOptimizer offers a python interface utilizing these tools to parameterize 
     #  Only necessary if you don't have ligand parameters.
     design.parameterize_ligand(
     input_ligand='ligand/YOUR_LIGAND.mol2', # Input ligand structure file could be .mol2/.sdf
+    addHs=True                              # Whether to add hydrogen atoms to the input structure
     )
 
 This creates a ``ligand.mol2`` structure file and additionally either a ``ligand.frcmod`` or ``ligand.prm`` and ``ligand.rtf`` parameter files in the ``ligand``
@@ -253,6 +256,7 @@ notebook and type the following:
     design.prepare_protein(
         protein_structure='scaffold/YOUR_PROTEIN.pdb',  # Input PDB
         keep_chains=['A', 'B'],  # Specific protein chain to keep
+        minimize=True,           # Whether to minimize the input protein structure
         backbone_restraint=True, #  Restrains the backbone during the minimization
         cuda=False,              # Performs minimization on CPU instead of GPU
         discard_mols=[]        # Special molecules to exclude. Per default everything, but peptides have to be defined manually
@@ -448,10 +452,11 @@ Side chain rotamers can be sampled with the following method based on the fixed 
 
     # Sampling of side chain rotamers
     design.sample_sidechain_rotamers(
-        library='dunbrack',           # Library used for choosing rotamers, options are: dunbrack or cmlib
+        library='dunbrack',          # Library used for choosing rotamers, options are: dunbrack or cmlib
         vdw_filter_thresh=100,       # Energy threshold of 100 kcal/mol
-        dunbrack_filter_thresh=0.01, # rotamers having a lower probability of occuring are eventually discarded
-        expand=['chi1','chi2']       # Expand certain chi-angles by +/- 1 Std
+        dunbrack_filter_thresh=0.01, # Rotamers having a lower probability of occuring are discarded
+        expand=['chi1','chi2'],      # Expand certain chi-angles by +/- 2 Std
+        accurate=False               # Samples more rotamers if True
         )
 
 This procedures will use the design mutations that were set in the previous step and a defined van
@@ -491,7 +496,7 @@ whereas the protein-ligand interaction energies can be also evaluated using diff
 
     # Outputs all available scoring functions
     design.scoring
-    {'smina': ['vina', 'vinardo', 'dkoes_scoring', 'ad4_scoring'],
+    {'smina': ['vina', 'vinardo', 'ad4_scoring'],
      'ff': ['amber_ff14SB', 'charmm36']}
 
 gives you an overview over all available scoring functions implemented in PocketOptimizer.
@@ -501,7 +506,8 @@ To calculate the energies:
 
     # Calculate the binding and packing energies of all ligand poses and side chain rotamers against each other and against the fixed scaffold
     design.calculate_energies(
-        scoring='vina',           #  Method to score protein-ligand interaction
+        scoring='vina', #  Method to score protein-ligand interaction
+        elec=0.01       #  Scaling factor for electrostatics
         )
 
 This step also defines the used scoring function (to change it repeat the step and use a different scoring function).
@@ -672,8 +678,8 @@ can be defined inside one Python script:
     # Sampling of side chain rotamers
     design.sample_sidechain_rotamers(
         library='dunbrack',           # Library used for choosing rotamers, options are: dunbrack or cmlib
-        vdw_filter_thresh=100,       # Energy threshold of 100 kcal/mol
-        dunbrack_filter_thresh=0.01, # rotamers having a lower probability of occuring are eventually discarded
+        vdw_filter_thresh=100,        # Energy threshold of 100 kcal/mol
+        dunbrack_filter_thresh=0.01,  # Rotamers having a lower probability of occuring are discarded
         )
 
     design.prepare_lig_conformers(
@@ -699,7 +705,8 @@ can be defined inside one Python script:
 
     # Calculate the binding and packing energies of all ligand poses and side chain rotamers against each other and against the fixed scaffold
     design.calculate_energies(
-        scoring='vina',           #  Method to score protein-ligand interaction
+        scoring='vina', #  Method to score protein-ligand interaction
+        elec=0.01       #  Scaling factor for electrostatics
         )
 
     # Compute the lowest energy structures using linear programming
@@ -715,7 +722,7 @@ By running the python script: ui.py, you can also access the command line interf
     PocketOptimizer computational protein design pipeline CLI, for more options
     use API.
 
-    usage: ui.py [-h] [-ff FORCEFIELD] -r RECEPTOR -l LIGAND [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--min_bb MIN_BB] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...] [--peptide_mutations [PEPTIDE_MUTATIONS ...]]
+    usage: ui.py [-h] [-ff FORCEFIELD] -r RECEPTOR -l LIGAND [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--min MIN] [--min_bb MIN_BB] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...] [--peptide_mutations [PEPTIDE_MUTATIONS ...]]
                  [--flex_peptide_res [FLEX_PEPTIDE_RES ...]] [--vdw_thresh VDW_THRESH] [--library LIBRARY] [--dunbrack_filter_thresh DUNBRACK_FILTER_THRESH] [--nconfs NCONFS] [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS]
                  [--max_poses MAX_POSES] [--sampling_pocket SAMPLING_POCKET] [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--cuda CUDA] [--clean CLEAN]
 
@@ -732,6 +739,7 @@ By running the python script: ui.py, you can also access the command line interf
       --ph PH               ph value for side chain and ligand protonation
       --keep_chains [KEEP_CHAINS ...]
                             Chains to keep by their chain identifiers
+      --min MIN             Whether to minimize the protein structure, default: Minimization
       --min_bb MIN_BB       Whether to minimize the proteins backbone, default: No minimization
       --discard_mols [DISCARD_MOLS ...]
                             Special molecules to exclude by their chain and residue identifier (A:1), per default everything, but peptides have to be defined manually
@@ -765,6 +773,7 @@ By running the python script: ui.py, you can also access the command line interf
       --ncpus NCPUS         Number of CPUs for multiprocesing
       --cuda CUDA           Enabling cuda for GPU based minimization, default: No cuda
       --clean CLEAN         Clean the working directory
+
 
 Publications
 ************

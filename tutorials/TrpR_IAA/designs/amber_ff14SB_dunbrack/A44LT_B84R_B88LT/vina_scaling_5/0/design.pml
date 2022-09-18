@@ -1,7 +1,7 @@
 bg_color white
-load /agh/projects/jakob/pocketoptimizer/tutorials/TrpR_IAA/designs/amber_ff14SB_dunbrack/A44LT_B84R_B88LT/vina_scaling_5/0/receptor.pdb, design
-load /agh/projects/jakob/pocketoptimizer/tutorials/TrpR_IAA/designs/amber_ff14SB_dunbrack/A44LT_B84R_B88LT/vina_scaling_5/0/ligand.mol2, ligand
-load /agh/projects/jakob/pocketoptimizer/tutorials/TrpR_IAA/scaffold/amber_ff14SB/scaffold.pdb, WT_scaffold
+load /agh/projects/jakob/PycharmProjects/PocketOptimizer2/docs/tutorials/TrpR_IAA/designs/amber_ff14SB_dunbrack/A44LT_B84R_B88LT/vina_scaling_5/0/receptor.pdb, design
+load /agh/projects/jakob/PycharmProjects/PocketOptimizer2/docs/tutorials/TrpR_IAA/designs/amber_ff14SB_dunbrack/A44LT_B84R_B88LT/vina_scaling_5/0/ligand.mol2, ligand
+load /agh/projects/jakob/PycharmProjects/PocketOptimizer2/docs/tutorials/TrpR_IAA/scaffold/amber_ff14SB/scaffold.pdb, WT_scaffold
 hide lines
 cartoon loop
 color gray80, WT_scaffold and elem C
@@ -33,7 +33,7 @@ hide labels, HBD
 color lightorange, HBA
 color lightorange, HBD
 set label_size, 20
-load /agh/projects/jakob/pocketoptimizer/tutorials/TrpR_IAA/ligand/amber_ff14SB/ligand.mol2, WT_ligand
+load /agh/projects/jakob/PycharmProjects/PocketOptimizer2/docs/tutorials/TrpR_IAA/ligand/amber_ff14SB/ligand.mol2, WT_ligand
 show stick, WT_ligand
 color white, WT_ligand and elem C
 zoom new_pocket

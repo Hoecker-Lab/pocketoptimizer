@@ -1,42 +1,31 @@
 import os
 import numpy as np
 import pandas as pd
-from pocketoptimizer.utility.utils import create_pairs
+from typing import NoReturn
+
+from pocketoptimizer.utility.utils import create_pairs, Storer
 from pocketoptimizer.utility.index_mapper import IndexMapper
-from typing import List, Dict, Union, NoReturn
 
 
-class EnergyReader:
+class EnergyReader(Storer):
     """
     Class providing functionality to read self & pair energies from
     "raw" energy files and make the energy values accessible
     """
 
-    def __init__(self, work_dir: str, mutations: List[Dict[str, Union[str, List[str]]]], index_mapper: IndexMapper, forcefield: str, rotamer_path: str, scorer: str):
+    def __init__(self, index_mapper: IndexMapper, **kwargs):
         """
         Constructor
 
         Parameters
         ----------
-        work_dir: str
-            Path of the working directory
-        mutations: list
-            Containing mutations with their corresponding resids and chains
         index_mapper: :class: IndexMapper object
             IndexMapper defining the current design
-        forcefield: str
-            Forcefield used for energy computations
-        rotamer_path: str
-            Path of the directory containing the sampled sidechain rotamers
         scorer: str
             Scoring method used to score ligand/protein interactions
         """
-        self.work_dir = work_dir
-        self.mutations = mutations
+        super().__init__(**kwargs)
         self.index_mapper = index_mapper
-        self.forcefield = forcefield
-        self.rotamer_path = rotamer_path
-        self.scorer = scorer
 
         # {'B_41':np.array([13.234, 4234.42, 42.234,...]),
         #  'ligand':np.array([]), 'water3':np_array[-2.0, 0], ...}
@@ -71,7 +60,7 @@ class EnergyReader:
 
             for resname in position['mutations']:
                 # Filename of csv sdiechain files
-                csv = os.path.join(self.work_dir, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'sidechain_scaffold_{self.forcefield}', f'{chain}_{resid}_{resname}.csv')
+                csv = os.path.join(self.side_scaff, f'{chain}_{resid}_{resname}.csv')
                 # Read in csv as pandas dataframe
                 df = pd.read_csv(csv, delimiter='\t', index_col=0)
                 # create numpy array from dataframe summing up energies
@@ -85,7 +74,7 @@ class EnergyReader:
         nconfs = self.index_mapper.get_conf_count_for_pos('ligand')
         self._self_energies['ligand'] = np.zeros(nconfs)
         # Filename of csv ligand file
-        csv = os.path.join(self.work_dir, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'ligand_scaffold_{self.scorer}', 'ligand.csv')
+        csv = os.path.join(self.lig_scaff, 'ligand.csv')
         # Read in csv as pandas dataframe
         df = pd.read_csv(csv, delimiter='\t', index_col=0)
         # get energy offset depending on scoring function
@@ -124,7 +113,7 @@ class EnergyReader:
                 row = 0
                 column = 0
                 tmp_resname_a = resname_a
-            csv = os.path.join(self.work_dir, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'sidechain_sidechain_{self.forcefield}',
+            csv = os.path.join(self.side_side,
                                f'{chain_a}_{resid_a}_{resname_a}_{chain_b}_{resid_b}_{resname_b}.csv')
             # Read in csv as pandas dataframe
             df = pd.read_csv(csv, delimiter='\t', index_col=0)
@@ -154,7 +143,7 @@ class EnergyReader:
             row = 0
             for resname in position['mutations']:
                 # Filename of csv ligand file
-                csv = os.path.join(self.work_dir, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'ligand_sidechain_{self.scorer}', f'ligand_{position["chain"]}_{position["resid"]}_{resname}.csv')
+                csv = os.path.join(self.lig_side, f'ligand_{position["chain"]}_{position["resid"]}_{resname}.csv')
                 # Read in csv as pandas dataframe
                 df = pd.read_csv(csv, delimiter='\t', index_col=0)
                 nrg_offset = int(len(df.columns)/(int(df.columns[-1].split('_')[1]) + 1))

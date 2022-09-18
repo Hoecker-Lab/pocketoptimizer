@@ -2,7 +2,6 @@ import glob
 import os
 from os.path import dirname
 from typing import List, Dict, Tuple, Union, NoReturn
-
 from natsort import natsorted
 import itertools
 import logging
@@ -11,12 +10,72 @@ import numpy as np
 import pandas as pd
 from moleculekit.molecule import Molecule
 
+from pocketoptimizer.ui import DesignPipeline
+
 logger = logging.getLogger(__name__)
+
+
+class Storer:
+    """
+    Storer class for accessing paths set in the user interface
+    """
+    def __init__(self, design_pipeline: DesignPipeline):
+        """
+        Initialize a :class: Storer object
+
+        Parameters
+        ----------
+        design_pipeline: :class: DesignPipeline object
+            Object containing all stored informations to be accessed in other modules of the pipeline
+
+        """
+        self.work_dir = design_pipeline.work_dir
+        self.peptide = design_pipeline.peptide
+        self.ph = design_pipeline.ph
+        self.temperature = design_pipeline.temperature
+        self.mutations = design_pipeline.mutations
+        if self.peptide:
+            self.peptide_mutations = design_pipeline.peptide_mutations
+        self.forcefield = design_pipeline.forcefield
+        self.intra = design_pipeline.intra
+        self.elec = design_pipeline.elec
+        self.scorer = design_pipeline.scorer
+        self.library = design_pipeline.library
+        self.rotamer_path = design_pipeline.rotamer_path
+        self.built_scaffold = design_pipeline.built_scaffold
+        self.prepared_protein = design_pipeline.prepared_protein
+        self.ligand_protonated = design_pipeline.ligand_protonated
+        self.built_ligand_params = design_pipeline.built_ligand_params
+        self.ligand_conformers = design_pipeline.ligand_conformers
+        self.ligand_poses_pdb = design_pipeline.ligand_poses_pdb
+        self.ligand_poses_xtc = design_pipeline.ligand_poses_xtc
+        self.side_scaff = os.path.join(self.work_dir, 'energies', f'{self.forcefield}_{self.library}',
+                                       f'sidechain_scaffold_{self.forcefield}')
+        self.side_side = os.path.join(self.work_dir, 'energies', f'{self.forcefield}_{self.library}',
+                                  f'sidechain_sidechain_{self.forcefield}')
+        self.lig_scaff = os.path.join(self.work_dir,
+                                      'energies',
+                                      f'{self.forcefield}_{self.library}',
+                                      f'ligand_scaffold_{self.scorer}')
+        self.lig_side = os.path.join(self.work_dir,
+                                     'energies',
+                                     f'{self.forcefield}_{self.library}',
+                                     f'ligand_sidechain_{self.scorer}')
+
+        self.ncpus = design_pipeline.ncpus
+        self.obabel = design_pipeline.settings.OBABEL_BIN
+        self.match = design_pipeline.settings.MATCH_PERL
+        self.antechamber = design_pipeline.settings.ANTECHAMBER_BIN
+        self.parmchk2 = design_pipeline.settings.PARMCHK2_BIN
+        self.tleap = design_pipeline.settings.TLEAP_BIN
+        self.psfgen = design_pipeline.settings.PSFGEN_BIN
+        self.smina = design_pipeline.settings.SMINA_BIN
+        self.tmp_dir = design_pipeline.settings.TMP_DIR
 
 
 class MutationProcessor:
 
-    def __init__(self, structure: str, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str):
+    def __init__(self, structure: Molecule, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str):
         """
         Constructor Method.
 
@@ -28,19 +87,16 @@ class MutationProcessor:
 
         Parameters
         ----------
-        structure : str
-            Path to the prepared and minimized PDB structure file.
         mutations: list
-            List of Dictionaries containing mutations with their corresponding resids and chains
+            List of mutations to be processed
+        structure: :class: Molecule
+            Structure to be checked for the mutations
         forcefield: str
-            Force field used
+            Forcefield used
         """
-        try:
-            self.structure = Molecule(structure)
-        except FileNotFoundError:
-            logger.error(f'Could not find: {structure}.')
-            raise FileNotFoundError(f'Could not find: {structure}.')
         self.mutations = mutations
+        self.structure = Molecule(structure)
+        self.forcefield = forcefield
         self.aa = {
             'ALL': ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY',
                     'ILE', 'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL'],
@@ -52,9 +108,9 @@ class MutationProcessor:
             'HYDRO': ['SER', 'THR'],
             'SULF': ['CYS', 'MET'],
         }
-        if forcefield == 'amber_ff14SB':
+        if self.forcefield == 'amber_ff14SB':
             self.aa.update({'HIS': ['HID', 'HIE', 'HIP']})
-        elif forcefield == 'charmm36':
+        elif self.forcefield == 'charmm36':
             self.aa.update({'HIS': ['HSD', 'HSE', 'HSP']})
         self.aa['ALL'].extend(self.aa['HIS'])
 

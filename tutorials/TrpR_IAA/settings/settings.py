@@ -1,12 +1,12 @@
 OBABEL_BIN = '/agh/projects/jakob/miniconda3/envs/pocketoptimizer/bin/obabel'
-MATCH_PERL = '/agh/projects/jakob/pocketoptimizer/pocketoptimizer/../MATCH_RELEASE/MATCH/scripts/MATCH.pl'
+MATCH_PERL = '/agh/projects/jakob/PycharmProjects/PocketOptimizer2/MATCH_RELEASE/MATCH/scripts/MATCH.pl'
 ANTECHAMBER_BIN = '/agh/projects/jakob/miniconda3/envs/pocketoptimizer/bin/antechamber'
 PARMCHK2_BIN = '/agh/projects/jakob/miniconda3/envs/pocketoptimizer/bin/parmchk2'
 TLEAP_BIN = '/agh/projects/jakob/miniconda3/envs/pocketoptimizer/bin/tleap'
-PSFGEN_BIN = '/agh/projects/jakob/pocketoptimizer/pocketoptimizer/bin/psfgen'
+PSFGEN_BIN = '/agh/projects/jakob/PycharmProjects/PocketOptimizer2/pocketoptimizer/bin/psfgen'
 SMINA_BIN = '/agh/projects/jakob/miniconda3/envs/pocketoptimizer/bin/smina'
-SOLVER_BIN = '/agh/projects/jakob/pocketoptimizer/pocketoptimizer/bin/sontag_solver'
-POCKETOPTIMIZER_LOGFILE = '/agh/projects/jakob/pocketoptimizer/tutorials/TrpR_IAA/pocketoptimizer.log'
+SOLVER_BIN = '/agh/projects/jakob/PycharmProjects/PocketOptimizer2/pocketoptimizer/bin/sontag_solver'
+POCKETOPTIMIZER_LOGFILE = '/agh/projects/jakob/PycharmProjects/PocketOptimizer2/docs/tutorials/TrpR_IAA/pocketoptimizer.log'
 TMP_DIR = '/tmp/user/1702035'
 
 class Settings:

@@ -1,7 +1,7 @@
 from math import sin, cos
 import multiprocessing as mp
 from functools import partial
-from typing import List, Tuple, Dict, NoReturn
+from typing import List, Dict, NoReturn
 import logging
 import os
 from copy import deepcopy
@@ -12,26 +12,23 @@ from moleculekit.molecule import Molecule
 from moleculekit.util import uniformRandomRotation
 from moleculekit.projections.metricdistance import MetricDistance
 
+from pocketoptimizer.utility.utils import Storer
+
 logger = logging.getLogger(__name__)
 
 
-class PoseSampler:
+class PoseSampler(Storer):
     """
     Class providing methods to create an ensemble of ligand poses inside the binding pocket and to prune generated poses based on a vdw threshold.
     """
-    def __init__(self, work_dir: str, ligand: str, forcefield: str = 'amber_ff14SB', sampling_method: str = 'grid',
-                 max_poses: int = 10000, filter: str = 'diverse', peptide: bool = False):
+    def __init__(self, sampling_method: str = 'grid', max_poses: int = 10000, filter: str = 'diverse', **kwargs):
         """
         Constructor method.
 
         Parameters
         ----------
-        work_dir: str
-            working directory
         ligand: str
             Path to ligand conformer file
-        forcefield: str
-            Force field that will be used to compute the vdW energy
         sampling_method: str
             Method that will be used to generate poses ('grid', 'random') [default: 'grid']
         max_poses: maximum number of poses to generate [default: 10000]
@@ -42,13 +39,10 @@ class PoseSampler:
         peptide: bool
             Whether ligand is a peptide [default: False]
         """
-        self.work_dir = work_dir
-        self.ligand = ligand
-        self.forcefield = forcefield
+        super().__init__(**kwargs)
         self.sampling_method = sampling_method
         self.max_poses = max_poses
         self.filter = filter
-        self.peptide = peptide
 
     @ staticmethod
     def rotate_x(angle: float) -> np.ndarray:
@@ -252,8 +246,7 @@ class PoseSampler:
 
         return np.array(sampled_poses).transpose(1, 2, 0)
 
-    @ staticmethod
-    def filter_clashes(pose_id: int, pose_coords: np.ndarray, struc: Molecule, ffev: FFEvaluate) -> np.float:
+    def filter_clashes(self, pose_id: int, pose_coords: np.ndarray, struc: Molecule, ffev: FFEvaluate) -> np.float:
         """Calculation and filtering procedure.
 
         Calculates the vdw energy of a ligand pose
@@ -275,6 +268,7 @@ class PoseSampler:
         """
         struc.set('coords', pose_coords[:, :, pose_id], 'segid L')
         energies = ffev.calculateEnergies(struc.coords)
+
         return energies['vdw']
 
     @ staticmethod
@@ -429,7 +423,7 @@ class PoseSampler:
                 poses.append(mol2.coords)
         return self.filter_redundant(np.dstack(poses))
 
-    def create_ligand_ensemble(self, grid: Dict[str, List[float]] = None, vdw_filter_thresh: float = 100.0, ncpus: int = 1) -> NoReturn:
+    def create_ligand_ensemble(self, grid: Dict[str, List[float]] = None, vdw_filter_thresh: float = 100.0) -> NoReturn:
         """Creates a ligand pose ensemble by transforming the ligand along every axis.
 
         Every ligand conformer provided will be translated and rotated along x, y, z
@@ -445,26 +439,24 @@ class PoseSampler:
             Contains translational and rotational steps.
         vdw_filter_thresh: float
             Threshold value for filtering poses [default: 100 kcal/mol]
-        ncpus: int
-            Number of CPUs to be used. [default: 1]
         """
         from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
 
-        os.makedirs(os.path.join(self.work_dir, 'ligand', self.forcefield, 'poses'), exist_ok=True)
+        os.makedirs(os.path.dirname(self.ligand_poses_pdb), exist_ok=True)
 
         logger.info('Start ligand pose sampling procedure.')
         struc, prm = load_ff_parameters(structure_path=os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', 'ligand_sampling_pocket'), forcefield=self.forcefield)
 
         try:
-            ligand_confs = Molecule(self.ligand)
+            ligand_confs = Molecule(self.ligand_conformers)
             # Dont append native conf for peptides as it is already included
             if not self.peptide:
                 native_conf = np.expand_dims(struc.get('coords', sel='segid L'), axis=2)
                 ligand_confs.coords = np.dstack((ligand_confs.coords, native_conf))
         except (IndexError, FileNotFoundError):
             # If ligand confs doesn't exist or doesn't contain conformers
-            logger.error(f'{self.ligand} does not exist or does not contain conformers.')
-            raise FileNotFoundError(f'{self.ligand} does not exist or does not contain conformers.')
+            logger.error(f'{self.ligand_conformers} does not exist or does not contain conformers.')
+            raise FileNotFoundError(f'{self.ligand_conformers} does not exist or does not contain conformers.')
 
         # Atom order needs to be the same in both files
         if (struc.get('name', 'segid L') != ligand_confs.get('name')).all():
@@ -486,14 +478,14 @@ class PoseSampler:
         logger.info(f'Created possible {nposes} poses.')
 
         logger.info('Start filtering poses.')
-        logger.info(f'Using {ncpus} CPUs for multiprocessing.')
+        logger.info(f'Using {self.ncpus} CPUs for multiprocessing.')
 
-        ffev = FFEvaluate(struc, prm, betweensets=('protein', 'segid L'))
-        chunksize = calculate_chunks(nposes=nposes, ncpus=ncpus)
+        ffev = FFEvaluate(struc, prm)
+        chunksize = calculate_chunks(nposes=nposes, ncpus=self.ncpus)
 
         energies = np.ndarray(nposes)
         with tqdm(total=nposes, desc='Filter Poses') as pbar:
-            with mp.Pool(processes=ncpus) as pool:
+            with mp.Pool(processes=self.ncpus) as pool:
                     for pose_id, energy in enumerate(pool.imap(
                             partial(self.filter_clashes,
                                     pose_coords=poses,
@@ -506,8 +498,7 @@ class PoseSampler:
         val_ids = [val_id[0] for val_id in np.argwhere(energies <= min(energies) + vdw_filter_thresh)]
         logger.info(f'Calculated {len(val_ids)} poses within energy threshold of {str(vdw_filter_thresh)} kcal/mol.')
 
-        ligand_pose_energy_file = os.path.join(self.work_dir, 'ligand', self.forcefield, 'poses', 'ligand_poses.csv')
-        write_energies(outpath=ligand_pose_energy_file,
+        write_energies(outpath=os.path.join(os.path.dirname(self.ligand_poses_pdb), 'ligand_poses.csv'),
                        energies=energies,
                        energy_terms=['Vdw'],
                        name_a='ligand_pose',
@@ -520,6 +511,6 @@ class PoseSampler:
         ligand_confs.coords = poses[:, :, val_ids]
 
         # Save as trajectory
-        ligand_confs.write(os.path.join(self.work_dir, 'ligand', self.forcefield, 'poses', f'ligand_poses.pdb'))
-        ligand_confs.write(os.path.join(self.work_dir, 'ligand', self.forcefield, 'poses', f'ligand_poses.xtc'))
+        ligand_confs.write(self.ligand_poses_pdb)
+        ligand_confs.write(self.ligand_poses_xtc)
         logger.info('Pose sampling procedure was successful.')

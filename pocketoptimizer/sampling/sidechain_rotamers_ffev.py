@@ -5,16 +5,17 @@ import multiprocessing as mp
 from functools import partial
 import tempfile as tf
 import shutil
-from typing import List, Tuple, Dict, Union, NoReturn
+from typing import List, Tuple, Dict, NoReturn
 import logging
-
 from moleculekit.molecule import Molecule
 from ffevaluation.ffevaluate import FFEvaluate
+
+from pocketoptimizer.utility.utils import Storer
 
 logger = logging.getLogger(__name__)
 
 
-class FFRotamerSampler:
+class FFRotamerSampler(Storer):
     """ Class for force field based rotamer sampling using either backbone independent rotamers
     from cmlib or backbone dependent rotamers from dunbrack rotamer library.
         cmlib:
@@ -29,34 +30,8 @@ class FFRotamerSampler:
             * filter based on energy
     - save rotamers into pdb files and energies into csv files
     """
-    def __init__(self, work_dir: str, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str,
-                 rot_path: str, library: str = 'dunbrack', tmp: str = '/tmp/'):
-        """
-        Constructor method.
-
-        Parameters
-        ----------
-        work_dir: str
-            Path to working directory
-        mutations: list
-            List of all mutations where rotamers should be sampled for. Contains dictionaries as list entries.
-            The dictionary should contain 'chain', 'resid', 'mutations' as keys.
-        forcefield: str
-            Force field to use for energy calculations
-        rot_path: str
-            Output path for sampled rotamers
-        library: str
-            Library to use for selecting rotamers, either setting coordinates from pdb after superimposing (cmlib)
-            or setting dihedral angles from dunbrack [default: 'dunbrack']
-        tmp: str
-            Temporary directory to write temporary files [default: '/tmp']
-        """
-        self.work_dir = work_dir
-        self.mutations = mutations
-        self.library = library
-        self.forcefield = forcefield
-        self.rot_path = rot_path
-        self.tmp = tmp
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def read_db(self, resname: str, phi_angle: float = 0.0, psi_angle: float = 0.0, prob_cutoff: float = -1) -> Dict[str, List[Tuple[float]]]:
         """
@@ -132,7 +107,7 @@ class FFRotamerSampler:
         return rotamers
 
     @staticmethod
-    def expand_dunbrack(rotamers: List[Dict[str, float or List[int or float]]], expand: List[str] = ['chi1', 'chi2']) -> List[Tuple[float]]:
+    def expand_dunbrack(rotamers: List[Dict[str, float or List[int or float]]], expand: List[str] = ['chi1', 'chi2'], accurate: bool = False) -> List[Tuple[float]]:
         """
         Expands defined chi-angles by +/- 2 Std
 
@@ -143,6 +118,8 @@ class FFRotamerSampler:
             for rotamers belonging to a respective phi/psi angle combination
         expand: list
             List of which chi angles to expand, [default: ['chi1', 'chi2']]
+        accurate: bool
+            Whether to expand chi-angles by +/-2 std or also +/-1 std
 
         Returns
         -------
@@ -160,6 +137,9 @@ class FFRotamerSampler:
                     rotamer_chi_angles[i].append([chi_angle - 2 * rotamers['std'][i][j],
                                                   chi_angle,
                                                   chi_angle + 2 * rotamers['std'][i][j]])
+                    if accurate:
+                        rotamer_chi_angles[i][j].extend([chi_angle - 1 * rotamers['std'][i][j],
+                                                      chi_angle + 1 * rotamers['std'][i][j]])
                 else:
                     rotamer_chi_angles[i].append([chi_angle])
 
@@ -175,10 +155,10 @@ class FFRotamerSampler:
                                 rotamers['chi'].append(rotamer)
         return rotamers
 
-    def calculate_vdw(self, rot_id: int, structure: Molecule, ffev: FFEvaluate,
+    def calculate_energy(self, rot_id: int, structure: Molecule, ffev: FFEvaluate,
                       res_coords: np.ndarray, resname: str, resid: str, chain: str) -> np.float:
         """
-        Calculates vdW energy of a rotamer
+        Calculates vdw energy of a rotamer
 
         Parameters
         ----------
@@ -204,7 +184,7 @@ class FFRotamerSampler:
         # Set coordinates of side chain to coordinates from rotamer
         structure.set('coords', res_coords[:, :, rot_id], f'resid {resid} and chain {chain}')
         energies = ffev.calculateEnergies(structure.coords)
-        structure.write(os.path.join(self.tmp, f'{chain}_{resid}_{resname}_rot_{rot_id}.pdb'),
+        structure.write(os.path.join(self.tmp_dir, f'{chain}_{resid}_{resname}_rot_{rot_id}.pdb'),
                         sel=f'resid {resid} and chain {chain}')
 
         return energies['vdw']
@@ -228,7 +208,7 @@ class FFRotamerSampler:
         with open(outfile, 'w') as merged_rot_file:
             i = 0
             for rot_id in rot_ids:
-                with open(os.path.join(self.tmp, f'{chain}_{resid}_{resname}_rot_{rot_id}.pdb'), 'r') as rot_file:
+                with open(os.path.join(self.tmp_dir, f'{chain}_{resid}_{resname}_rot_{rot_id}.pdb'), 'r') as rot_file:
                     for line in rot_file:
                         if line.startswith('MODEL'):
                             i += 1
@@ -243,26 +223,25 @@ class FFRotamerSampler:
                         merged_rot_file.write(line)
             merged_rot_file.write('END')
 
-    def rotamer_sampling(self, vdw_filter_thresh: float = 100.0, dunbrack_filter_thresh: float = -1,
-                         expand: List[str] = ['chi1', 'chi2'], ncpus: int = 1, _keep_tmp: bool = False) -> NoReturn:
+    def rotamer_sampling(self, vdw_filter_thresh: float = 100.0, dunbrack_prob: float = -1,
+                         expand: List[str] = ['chi1', 'chi2'], accurate: bool = False, _keep_tmp: bool = False) -> NoReturn:
         """
         Parameters
         ----------
         vdw_filter_thresh: float
-            Filtering threshold to avoid clashes. [default: 100 kcal/mol]
-        dunbrack_filter_thresh: float
+            Energy filtering threshold to avoid clashes. [default: 100 kcal/mol]
+        dunbrack_prob: float
             Filter threshold, rotamers having probability of occurence lower than filter threshold will
             be pruned if their rotameric mode does occur more than once
             (-1: no pruning, 1: pruning of all rotamers with duplicate rotamer modes) [default: -1]
         expand: list
             List of chi angles to expand [default: ['chi1', 'chi2']]
-        ncpus: int
-            Number of CPUs to use for multiprocessing. [default: 1]
+        accurate: bool
+            Whether to expand chi-angles by +/-2 std or also +/-1 std
         _keep_tmp: bool
             If the tmp directory should be deleted or not. Useful for debugging. [default: False]
         """
         from pocketoptimizer.utility.utils import MutationProcessor, load_ff_parameters, write_energies, calculate_chunks
-        from pocketoptimizer.utility.molecule_types import backbone_atoms
 
         logger.info('Start rotamer sampling procedure using FFEvaluate.')
         if self.forcefield == 'amber_ff14SB':
@@ -273,11 +252,11 @@ class FFRotamerSampler:
             logger.error('Force field not implemented.')
             raise NotImplementedError('Force field not implemented.')
 
-        self.tmp = tf.mkdtemp(dir=self.tmp, prefix='calculateRotamers_')
-        os.chdir(self.tmp)
-        logger.info(f"Using {ncpus} CPU's for multiprocessing.")
+        self.tmp_dir = tf.mkdtemp(dir=self.tmp_dir, prefix='calculateRotamers_')
+        os.chdir(self.tmp_dir)
+        logger.info(f"Using {self.ncpus} CPU's for multiprocessing.")
 
-        mutation_processor = MutationProcessor(structure=os.path.join(self.work_dir, 'scaffold', self.forcefield, 'scaffold.pdb'),
+        mutation_processor = MutationProcessor(structure=self.built_scaffold,
                                                mutations=self.mutations,
                                                forcefield=self.forcefield)
         termini_positions = mutation_processor.check_termini()
@@ -288,7 +267,7 @@ class FFRotamerSampler:
 
             for resname in mutation['mutations']:
                 # Check computation status of rotamer
-                outfile = os.path.join(self.rot_path,  f'{chain}_{resid}', f'{resname}.pdb')
+                outfile = os.path.join(self.rotamer_path,  f'{chain}_{resid}', f'{resname}.pdb')
                 if os.path.exists(outfile):
                     logger.info(f'Rotamers for residue: {chain}_{resid}_{resname} already sampled.')
                     continue
@@ -303,6 +282,7 @@ class FFRotamerSampler:
                     raise FileNotFoundError(f'Missing single mutated structure for mutation: {chain}_{resid}_{resname}.')
 
                 struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
+                struc.remove('segid L', _logger=False)
 
                 # Keep original rotamer
                 residue = struc.copy()
@@ -338,10 +318,11 @@ class FFRotamerSampler:
                             rotamers = self.read_db(resname=_resname,
                                                     phi_angle=phi_angle,
                                                     psi_angle=psi_angle,
-                                                    prob_cutoff=dunbrack_filter_thresh)
+                                                    prob_cutoff=dunbrack_prob)
 
                             rotamers = self.expand_dunbrack(rotamers=rotamers,
-                                                            expand=expand)
+                                                            expand=expand,
+                                                            accurate=accurate)
 
                     else:
                         logger.error(f'Library: {self.library} not implemented.')
@@ -367,23 +348,21 @@ class FFRotamerSampler:
 
                 nrots = residue.coords.shape[-1]
 
-                fixed_selection = f'not segid L and not (chain {chain} and resid {resid})'
-                variable_selection = f'chain {chain} and resid {resid} and not ({backbone_atoms})'
                 # Generate FFEvaluate object for scoring between sidechain and rest of protein without sidechain and backbone from sidechain
-                ffev = FFEvaluate(struc, prm, betweensets=(fixed_selection, variable_selection))
+                ffev = FFEvaluate(struc, prm)
 
                 energies = np.ndarray(nrots)
                 with tqdm(total=nrots, desc=f'{chain}_{resid}_{resname}') as pbar:
-                    with mp.Pool(processes=ncpus) as pool:
+                    with mp.Pool(processes=self.ncpus) as pool:
                         for i, energy in enumerate(pool.imap(
-                                partial(self.calculate_vdw,
+                                partial(self.calculate_energy,
                                         structure=struc.copy(),
                                         ffev=ffev,
                                         res_coords=residue.coords,
                                         resname=resname,
                                         resid=resid,
                                         chain=chain), np.arange(nrots),
-                                chunksize=calculate_chunks(nposes=nrots, ncpus=ncpus))):
+                                chunksize=calculate_chunks(nposes=nrots, ncpus=self.ncpus))):
                             energies[i] = energy
                             pbar.update()
 
@@ -402,6 +381,6 @@ class FFRotamerSampler:
                 self.merge_rotamers(rot_ids=val_ids, resname=resname, resid=resid, chain=chain, outfile=outfile)
 
         if not _keep_tmp:
-            if os.path.isdir(self.tmp):
-                shutil.rmtree(self.tmp)
+            if os.path.isdir(self.tmp_dir):
+                shutil.rmtree(self.tmp_dir)
         logger.info('Rotamer sampling procedure is finished.')

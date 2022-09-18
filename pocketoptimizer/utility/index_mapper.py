@@ -6,10 +6,13 @@ import logging
 from natsort import natsorted
 from moleculekit.molecule import Molecule
 
+from pocketoptimizer.ui import DesignPipeline
+from pocketoptimizer.utility.utils import Storer
+
 logger = logging.getLogger(__name__)
 
 
-class IndexMapper:
+class IndexMapper(Storer):
     """
     Class used to record for a design the names of the design positions
     (backbone positions, ligand, waters, ...), the names of
@@ -19,7 +22,7 @@ class IndexMapper:
     input files, so they can be mapped to each other and retrieved.
     """
 
-    def __init__(self):
+    def __init__(self, **kwargs):
         """
         Constructor.
         Creates empty member lists and dictionaries.
@@ -35,6 +38,7 @@ class IndexMapper:
         self._dummy_energy: This energy value (in kcal/mol) is set as the pairwise energy of
                             conformer pairs that are excluded
         """
+        super().__init__(**kwargs)
         self._conformer_counts = {}
         self._scaling_factors = {}
         self._dummy_energy = 1e20
@@ -71,7 +75,7 @@ class IndexMapper:
                     self._scaling_factors[pos] = float(sf)
 
     @classmethod
-    def from_index_file(cls, filename: str) -> IndexMapper:
+    def from_index_file(cls, filename: str, design_pipeline: DesignPipeline) -> IndexMapper:
         """
         Initialize from an index file.
 
@@ -79,61 +83,46 @@ class IndexMapper:
         ----------
         filename: str
             Path of the index file
-
+        design_pipeline: :class: DesignPipeline
+            DesignPipeline object for initialization
         """
-        im = cls()
+        im = cls(design_pipeline=design_pipeline)
         im._read_index_file(filename)
         return im
 
     @classmethod
-    def from_conformer_files(cls, rotamer_dir: str, lig_poses: str, mutations: List[Dict[str, Union[str, List[str]]]]) -> IndexMapper:
+    def from_conformer_files(cls, design_pipeline: DesignPipeline) -> IndexMapper:
         """
         Initializes IndexMapper object from side chain rotamer and ligand conformer files.
 
         Parameters
         ----------
-        rotamer_dir: str
-            Directory containing rotamers for all mutations defined
-        lig_poses: str
-            Path of the file containing all sampled ligand poses
-        mutations: list
-            All mutations, contains dictionaries as list entries.
-            The dictionary should contain 'chain', 'resid', 'mutations' as keys
+        design_pipeline: :class: DesignPipeline
+            DesignPipeline object for initialization
 
         Returns
         --------
         :class:IndexMapper object
         """
-        im = cls()
-        im._count_conformers(rotamer_dir, lig_poses, mutations)
+        im = cls(design_pipeline=design_pipeline)
+        im._count_conformers()
         return im
 
-
-    def _count_conformers(self, rotamer_dir: str, lig_poses: str, mutations: List[Dict[str, Union[str, List[str]]]]) -> NoReturn:
+    def _count_conformers(self) -> NoReturn:
         """
         Initializes IndexMapper object with _conformers_count attribute. Dictionary containing
         Positions as keys ('A_44') and dictionaries as values. These dictionaries contain resnames for positions
         as keys and corresponding conformer counts as values.
-
-        Parameters
-        ----------
-        rotamer_dir: str
-            Directory containing rotamers for all mutations defined
-        lig_poses: str
-            Path of the file containing all sampled ligand poses
-        mutations: list
-            All mutations, contains dictionaries as list entries.
-            The dictionary should contain 'chain', 'resid', 'mutations' as keys
         """
         self._conformer_counts = {}
         self._scaling_factors = {}
-        for position in mutations:
+        for position in self.mutations:
             chain, resid = position['chain'], position['resid']
             self._conformer_counts[f'{chain}_{resid}'] = {}
             for resname in position['mutations']:
                 # Try to open rotamer file and count the number of Models contained
                 try:
-                    with open(os.path.join(rotamer_dir, f'{chain}_{resid}', f'{resname}.pdb'), 'r') as rotamer_file:
+                    with open(os.path.join(self.rotamer_path, f'{chain}_{resid}', f'{resname}.pdb'), 'r') as rotamer_file:
                         for line in rotamer_file:
                             if line.startswith('MODEL'):
                                 self._conformer_counts[f'{chain}_{resid}'][resname] = \
@@ -142,15 +131,11 @@ class IndexMapper:
                     logger.error(f'Missing rotamer for residue: {chain}_{resid}_{resname}.')
                     raise FileNotFoundError(f'Missing rotamer for residue: {chain}_{resid}_{resname}.')
         try:
-            ligand_poses = Molecule(lig_poses)
+            ligand_poses = Molecule(self.ligand_poses_pdb)
+            ligand_poses.read(self.ligand_poses_xtc)
         except:
-            logger.error(f'{lig_poses} not found.')
-            raise FileNotFoundError(f'{lig_poses} not found.')
-        try:
-            ligand_poses.read(os.path.splitext(lig_poses)[0] + '.xtc')
-        except:
-            logger.error(f'{os.path.splitext(lig_poses)[0] + ".xtc"} not found.')
-            raise FileNotFoundError(f'{os.path.splitext(lig_poses)[0] + ".xtc"} not found.')
+            logger.error(f'{self.ligand_poses_pdb} not found.')
+            raise FileNotFoundError(f'{self.ligand_poses_pdb} not found.')
 
         # Count the number of frames, which corresponds to the number of ligand poses
         self._conformer_counts['ligand'] = {}

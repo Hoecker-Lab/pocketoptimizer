@@ -2,18 +2,20 @@ import os
 import shutil
 import subprocess
 import tempfile as tf
-from typing import List, Dict, Union, NoReturn
+from typing import List, Dict, NoReturn
 import logging
 import numpy as np
 from moleculekit.molecule import Molecule
 from tqdm.auto import tqdm
 
+from pocketoptimizer.utility.utils import Storer
+
 logger = logging.getLogger(__name__)
 
 
-class SminaScorer:
+class SminaScorer(Storer):
     """
-    SminaScorer class for ligand protein interactions (ligand sidechain and ligand scaffold)
+    SminaScorer class for protein/ligand interactions
     Read scaffold
     Remove side chains at design positions from scaffold
     Write pdb
@@ -25,42 +27,8 @@ class SminaScorer:
     # Actually there should be conversion of receptor to pdbqt format
     # But since it does not make any difference in scores it has been removed
 
-    def __init__(self, ligand: str, ligand_poses: str, scaffold: str, project_path: str, scoring_method: str,
-                 forcefield: str, rotamer_path: str, smina_path: str, tmp_dir: str = '/tmp/'):
-        """
-        Initializes a :class: SminaScorer object
-
-        Parameters
-        ----------
-        ligand: str
-            Path to ligand.mol2 file with sybyl atom types
-        ligand_poses: str
-            Path to ligand_poses.pdb file
-        scaffold: str
-            Path to protein scaffold file
-        pocketless_scaffold: str
-            Path to Structure without pocket sidechains
-        project_path: str
-            Path of the whole project
-        scoring_method: str
-            Scoring method to use
-        forcefield: str
-            Force field used to parameterize the ligand
-        rotamer_path: str
-            Path to sampled side chain rotamers
-        smina_path: str
-            Path to smina binary
-        tmp_dir: str
-            path to temporary directory [default: '/tmp/']
-        """
-        self.ligand = ligand
-        self.ligand_poses = ligand_poses
-        self.scaffold = scaffold
-        self.pocketless_scaffold = 'pocketless.pdb'
-        self.project_path = project_path
-        self.lig_scaff = ''
-        self.lig_side = ''
-        self.scoring_method = scoring_method
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
         # The weights of the smina energy components as provided by the software
         self.smina_weights = {
@@ -87,19 +55,15 @@ class SminaScorer:
                 'num_tors_add': 0.2744
             }
         }
-        self.terms = [weight for weight in self.smina_weights[self.scoring_method].keys()]
-        self.weights = [weight for weight in self.smina_weights[self.scoring_method].values()]
-        if self.scoring_method not in self.smina_weights.keys():
-            logger.error(f'{self.scoring_method} is not a valid scoring method. Valid methods are:'
+        if self.scorer not in self.smina_weights.keys():
+            logger.error(f'{self.scorer} is not a valid scoring method. Valid methods are:'
                          f' vina, vinardo, ad4_scoring.')
-            raise ValueError(f'{self.scoring_method} is not a valid scoring method. Valid methods are:'
+            raise ValueError(f'{self.scorer} is not a valid scoring method. Valid methods are:'
                              f' vina, vinardo, ad4_scoring.')
-        self.forcefield = forcefield
-        self.rotamer_path = rotamer_path
-        self.smina = smina_path
-        self.tmp_dir = tmp_dir
+        self.terms = [weight for weight in self.smina_weights[self.scorer].keys()]
+        self.weights = [weight for weight in self.smina_weights[self.scorer].values()]
 
-    def parse_smina(self, smina_output: str, nposes: int, intra: bool = False) -> np.ndarray:
+    def parse_smina(self, smina_output: str, nposes: int, intra: bool) -> np.ndarray:
         """
         Smina output parsing function
 
@@ -110,23 +74,23 @@ class SminaScorer:
         nposes: int
             Number of ligand poses
         intra: bool
-            Whether to parse internamolecular energy
+            Whether to parse intramolecular energies
 
         Returns
         -------
         Array containing weighted energy components for all poses
         """
-        if intra:
+        if intra and self.intra:
             nrgs = np.zeros(len(self.weights) + 1)
-            scores = np.zeros((nposes, len(self.smina_weights[self.scoring_method]) + 1))
+            scores = np.zeros((nposes, len(self.smina_weights[self.scorer]) + 1))
         else:
             nrgs = np.zeros(len(self.weights))
-            scores = np.zeros((nposes, len(self.smina_weights[self.scoring_method])))
+            scores = np.zeros((nposes, len(self.smina_weights[self.scorer])))
 
         j = 0
         for line in smina_output.split('\n'):
             # Read out the energies for each pose
-            if intra:
+            if intra and self.intra:
                 if line.startswith('Intramolecular energy:'):
                     nrgs[0] = float(line.strip().split()[2])
                 elif line.startswith('## ') and not line.startswith('## Name'):
@@ -142,7 +106,7 @@ class SminaScorer:
                     j += 1
         return scores
 
-    def prepare_scaffold(self, mutations: List[Dict[str, Union[str, List[str]]]]) -> NoReturn:
+    def prepare_scaffold(self) -> NoReturn:
         """
         Prepares a scaffold where all side chains of mutation positions are removed
 
@@ -153,8 +117,8 @@ class SminaScorer:
         """
         from pocketoptimizer.utility.molecule_types import backbone_atoms
 
-        scaffold = Molecule(self.scaffold)
-        for position in mutations:
+        scaffold = Molecule(self.built_scaffold)
+        for position in self.mutations:
             scaffold.remove(f"chain {position['chain']} and resid {position['resid']} and not ({backbone_atoms})", _logger=False)
         scaffold.write('tmp.pdb')
         # Remove END from pdb file because babel sucks
@@ -205,7 +169,7 @@ class SminaScorer:
                     for line in pose_file:
                         combined_file.write(line)
 
-    def score_smina(self, receptor: str, ligand: str, nposes: int, intra: bool = False, ncpus: int = 1) -> Dict[str, float]:
+    def score_smina(self, receptor: str, ligand: str, nposes: int, intra: bool) -> np.ndarray:
         """
         Runs Smina scoring process for a receptor and ligand/s
 
@@ -218,13 +182,11 @@ class SminaScorer:
         nposes: int
             Number of ligand poses
         intra: bool
-            Whether to parse internamolecular energy
-        ncpus: int
-            Number of CPUs to use for scoring [default: 1]
+            Whether to parse intramolecular energy
 
         Returns
         -------
-        List of dictionaries containing different energy terms as keys and weighted energy values as values ({'gauss1': energy,..})
+        Array containing weighted energy components for all poses
         """
 
         score_command = [
@@ -232,52 +194,35 @@ class SminaScorer:
             '--receptor', receptor,
             '--ligand', ligand,
             '--score_only',
-            '--cpu', str(ncpus),
-            '--scoring', self.scoring_method
+            '--cpu', str(self.ncpus),
+            '--scoring', self.scorer
         ]
         process = subprocess.run(score_command, capture_output=True)
         return self.parse_smina(process.stdout.decode('ascii'), nposes=nposes, intra=intra)
 
-    def run_smina_scorer(self, mutations: List[Dict[str, Union[str, List[str]]]],
-                         ncpus: int = 1, _keep_tmp: bool = False) -> None or NoReturn:
+    def run_smina_scorer(self, _keep_tmp: bool = False) -> NoReturn:
         """
         Wrapper to run smina ligand protein interaction energy scoring
         Reading in ligand structure (ligand.mol2) and ligand poses from starting pose ligand_poses.pdb and ligand_poses.xtc trajectory
 
         Parameters
         ----------
-        mutations: List[Dict]
-            List of dictionaries defining the mutations at different positions
-        ncpus: int
-            Number of CPUs to use for scoring [default: number of CPUs in the system]
         _keep_tmp: bool
             If False deleting the temporary directory afterwards [default: False]
         """
         from pocketoptimizer.utility.utils import write_energies
+        logger.info(f'Score ligand interactions using {self.scorer}.')
 
-        logger.info(f'Score ligand interactions using {self.scoring_method}.')
-
-        # Output ligand scaffold energy
-        self.lig_scaff = os.path.join(self.project_path,
-                                      'energies',
-                                      f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}',
-                                      f'ligand_scaffold_{self.scoring_method}')
         os.makedirs(self.lig_scaff, exist_ok=True)
-        # Output ligand side chain energies
-        self.lig_side = os.path.join(self.project_path,
-                                     'energies',
-                                     f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}',
-                                     f'ligand_sidechain_{self.scoring_method}')
         os.makedirs(self.lig_side, exist_ok=True)
 
-        self.tmp_dir = tf.mkdtemp(dir=self.tmp_dir, prefix=f'calculateLigand{self.scoring_method}_')
+        self.tmp_dir = tf.mkdtemp(dir=self.tmp_dir, prefix=f'calculateLigand{self.scorer}_')
         os.chdir(self.tmp_dir)
 
-        ligand = Molecule(self.ligand)
-
+        ligand = Molecule(self.ligand_protonated)
         try:
-            ligand_poses = Molecule(self.ligand_poses)
-            ligand_poses.read(f'{os.path.splitext(self.ligand_poses)[0]}.xtc')
+            ligand_poses = Molecule(self.ligand_poses_pdb)
+            ligand_poses.read(self.ligand_poses_xtc)
         except:
             logger.error('Missing ligand poses.')
             raise FileNotFoundError('Missing ligand poses.')
@@ -301,28 +246,32 @@ class SminaScorer:
         else:
             logger.info(f'Ligand-Scaffold/Self interaction energy not computed yet.')
             logger.info('Prepare fixed scaffold.')
-            self.prepare_scaffold(mutations=mutations)
+            self.prepare_scaffold()
             with tqdm(total=1, desc='Ligand/Scaffold') as pbar:
-                self_nrgs = self.score_smina(receptor=self.pocketless_scaffold,
+                self_nrgs = self.score_smina(receptor='pocketless.pdb',
                                              ligand=lig_outfile,
                                              nposes=nposes,
-                                             intra=False,
-                                             ncpus=ncpus)
+                                             intra=True)
                 pbar.update()
+
             # Save data as csv
+            if self.intra:
+                energy_terms = ['Intra'] + self.terms
+            else:
+                energy_terms = self.terms
+
             write_energies(outpath=lig_scaffold_outfile,
-                           energies=self_nrgs,
-                           #energy_terms=['Intra'] + self.terms,
-                           energy_terms=self.terms,
-                           name_a='ligand_pose',
-                           nconfs_a=nposes)
+                               energies=self_nrgs,
+                               energy_terms=energy_terms,
+                               name_a='ligand_pose',
+                               nconfs_a=nposes)
 
         # Set the torsion weight factor to 0, in order not to count it for every pairwise interaction
         self.smina_weights['ad4_scoring']['num_tors_add'] = 0.0
 
         # Score ligand against sidechains
         # Loop over all mutations/flexible residues
-        for position in mutations:
+        for position in self.mutations:
             chain, resid = position['chain'], position['resid']
             for resname in position['mutations']:
                 lig_sidechain_outfile = os.path.join(f"{self.lig_side}", f"ligand_{chain}_{resid}_{resname}.csv")
@@ -361,8 +310,7 @@ class SminaScorer:
                         pair_nrg = self.score_smina(receptor=res_pdb,
                                                     ligand=lig_outfile,
                                                     nposes=nposes,
-                                                    intra=False,
-                                                    ncpus=ncpus)
+                                                    intra=False)
                         pair_nrgs[:, rot*nterms:rot*nterms + nterms] = pair_nrg
                         pbar.update()
 

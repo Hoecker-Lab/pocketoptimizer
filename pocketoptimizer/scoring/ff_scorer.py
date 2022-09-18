@@ -2,62 +2,42 @@ import itertools
 import multiprocessing as mp
 import os
 from functools import partial
-from typing import List, Dict, Union, Tuple, NoReturn
+from typing import Tuple, NoReturn
 import logging
 import numpy as np
 from ffevaluation.ffevaluate import FFEvaluate
 from moleculekit.molecule import Molecule
 from tqdm.auto import tqdm
 
+from pocketoptimizer.utility.utils import Storer
+
 logger = logging.getLogger(__name__)
 
-class FFScorer:
+
+class LigandScorer(Storer):
     """
-    FFScorer class for ligand protein interactions (ligand sidechain and ligand scaffold)
+    Ligand scoring class for ligand protein interactions (ligand sidechain and ligand scaffold)
     Utilizing molecular dynamics binding energy related computations
-    Only taking into account non-bonded interactions (VdW and electrostatic terms)
     Requires a built protein ligand complex, as well as complexes for each single mutation.
-    Each ligand pose is scored against fixed scaffold and against each sidechain rotamer respectively
 
     """
-    def __init__(self, ligand: str, ligand_poses: str, project_path: str, forcefield: str, rotamer_path: str):
-        """
-        Initialize a :class: FFScorer object
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-        Parameters
-        ----------
-        ligand: str
-            Path to ligand mol2 file
-        ligand_poses: str
-            Path to ligand poses file
-        project_path: str
-            Path to project/working directory
-        forcefield: str
-            Force field used for scoring
-        rotamer_path: str
-            Path to sampled side chain rotamers
-        """
-        self.ligand = ligand
-        self.ligand_poses = ligand_poses
-        self.project_path = project_path
-        self.forcefield = forcefield
-        self.rotamer_path = rotamer_path
-        self.lig_scaff = ''
-        self.lig_side = ''
-
-    @staticmethod
-    def calculate_energy(poses: Tuple[int], struc: Molecule, ffev: FFEvaluate, pose_coords: np.ndarray,
-                     rot_coords: np.ndarray = None, resid: str = None, chain: str = None) -> Tuple[np.float]:
+    def calculate_energy(self, ids: Tuple[int], struc: Molecule, ffev: FFEvaluate, pose_coords: np.ndarray, intra: bool,
+                        rot_coords: np.ndarray = None, resid: str = None, chain: str = None) -> Tuple[np.float]:
         """Calculates the force field components and returns the energies
 
         Parameters
         ----------
-        poses: tuple
-            Tuple of ligand pose and rotamer id
+        ids: tuple
+            Tuple of ligand and rotamer id
         struc: :class: moleculekit.Molecule
             Object of Molecule to set the rotamer coordinates
         ffev: :class:ffevaluation.ffevaluate.FFevaluate
             Object to calculate the energies from between sets ligand and side chain/scaffold
+        intra: bool
+            Whether to score ligand against scaffold or internally
         rot_coords: list
             Rotamer coordinates np.array(natoms, 3, nrots)
         pose_coords: list
@@ -69,45 +49,18 @@ class FFScorer:
         -------
         Tuple containing vdW and electrostatic energy for the scored ligand pose
         """
-        if len(poses) == 2:
-            struc.set('coords', rot_coords[..., poses[1]], f'chain {chain} and resid {resid}')
+        if len(ids) == 2:
+            struc.set('coords', rot_coords[..., ids[1]], f'chain {chain} and resid {resid}')
 
         # set coordinates to current ligand pose
-        struc.set('coords', pose_coords[..., poses[0]], 'segid L')
+        struc.set('coords', pose_coords[..., ids[0]], 'segid L')
         energies = ffev.calculateEnergies(struc.coords)
-        return energies['vdw'], energies['elec'] * 0.01
+        if not intra:
+            return energies['vdw'], energies['elec'] * self.elec
+        else:
+            return energies['bond'], energies['angle'], energies['dihedral'], energies['improper'], energies['vdw'], energies['elec']
 
-    def calculate_internal_energy(self, pose: int, struc: Molecule, ffev: FFEvaluate,
-                                  pose_coords: np.ndarray) -> Tuple[np.float]:
-        """
-        Calculates the internal energy of a rotamer
-
-        Parameters
-        ----------
-        pose: int
-            Index of current ligand pose
-        struc: :class: moleculekit.molecule.Molecule
-            Object containing all rotamers as frames
-        ffev: :class: ffevaluation.ffevaluate.FFEvaluate
-            Object created for respective forcefield from parameter file
-            between sets fixed_selection and variable_selection,
-            where energies can be calculated from
-        pose_coords: np.ndarray
-            Coordinates of the current rotamer
-
-        Returns
-        -------
-        Tuple with energy components
-        """
-
-        # Set coordinates to current rotamer
-        struc.set('coords', pose_coords[:, :, pose])
-        energies = ffev.calculateEnergies(struc.coords)
-
-        return energies['bond'], energies['angle'], energies['dihedral'], energies['improper'], energies['vdw'], energies['elec'] * 0.01
-
-    def run_self_nrg(self, pose_coords: np.ndarray, mutations: List[Dict[str, Union[str, List[str]]]], nposes: int,
-                     outpath: str, ncpus: int = 1) -> NoReturn:
+    def run_self_nrg(self, pose_coords: np.ndarray, nposes: int) -> NoReturn:
         """
         Calculates self energies
 
@@ -115,77 +68,77 @@ class FFScorer:
         ----------
         pose_coords: np.ndarray
             ligand pose coordinates in a numpy array
-        mutations: List[Dict]
-            List of dictionaries defining the mutations at different positions
         nposes: int
             Number of conformers
-        outpath: str
-            Output directory
-        ncpus: int
-            number of CPUs to use for scoring [default: 1]
         """
         from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
         from pocketoptimizer.utility.molecule_types import backbone_atoms
 
-        structure_path = os.path.join(self.project_path, 'scaffold', self.forcefield, 'protein_params', 'native_complex')
+        structure_path = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', 'native_complex')
 
         if not os.path.exists(os.path.join(structure_path, 'structure.pdb')):
             logger.error('Missing protein-ligand complex build.')
             raise FileNotFoundError('Missing protein-ligand complex build.')
 
-        outfile = os.path.join(outpath, 'ligand.csv')
+        outfile = os.path.join(self.lig_scaff, 'ligand.csv')
 
         # We only want to exclude sidechain atoms
         selection = 'not segid L and not ('
 
-        for position in mutations:
+        for position in self.mutations:
             selection += f"chain {position['chain']} and resid {position['resid']} and not ({backbone_atoms}) or "
 
         selection = selection[0:-4] + ')'
         struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
         ffev = FFEvaluate(struc, prm, betweensets=(selection, 'segid L'))
-        #self_nrgs = np.zeros((nposes, 6))
-        self_nrgs = np.zeros((nposes, 2))
 
-        with mp.Pool(processes=ncpus) as pool:
+        if self.intra:
+            energy_terms = ['Bond', 'Angle', 'Dihedral', 'Improper', 'Vdw', 'Elec']
+        else:
+            energy_terms = ['Vdw', 'Elec']
+
+        self_nrgs = np.zeros((nposes, len(energy_terms)))
+
+        with mp.Pool(processes=self.ncpus) as pool:
             with tqdm(total=nposes, desc='Ligand/Scaffold') as pbar:
                 for index, energy in enumerate(pool.imap(
                         partial(
                             self.calculate_energy,
-                            struc=struc.copy(),
+                            struc=struc,
                             ffev=ffev,
-                            pose_coords=pose_coords
+                            pose_coords=pose_coords,
+                            intra=False
                         ), [(pose,) for pose in range(nposes)],
-                        chunksize=calculate_chunks(nposes=nposes, ncpus=ncpus))):
-                    #self_nrgs[index, -2:] = energy
-                    self_nrgs[index] = energy
+                        chunksize=calculate_chunks(nposes=nposes, ncpus=self.ncpus))):
+                    self_nrgs[index, -2:] = energy
                     pbar.update()
 
-        # Generate FFEvaluate object for scoring ligand conformation
-        #struc.filter('segid L', _logger=False)
-        #ffev = FFEvaluate(struc, prm)
+        if self.intra:
+            # Generate FFEvaluate object for scoring ligand conformation
+            struc.filter('segid L', _logger=False)
+            ffev = FFEvaluate(struc, prm)
 
-        #with mp.Pool(processes=ncpus) as pool:
-            #with tqdm(total=nposes) as pbar:
-                #pbar.set_description('Ligand_Internal')
-                #for index, energy in enumerate(pool.imap(partial(
-                        #self.calculate_internal_energy,
-                        #struc=struc.copy(),
-                        #ffev=ffev,
-                        #pose_coords=pose_coords), np.arange(nposes),
-                        #chunksize=calculate_chunks(nposes=nposes, ncpus=ncpus))):
-                    #self_nrgs[index] += energy
-                    #pbar.update()
+            with mp.Pool(processes=self.ncpus) as pool:
+                with tqdm(total=nposes) as pbar:
+                    pbar.set_description('Ligand_Internal')
+                    for index, energy in enumerate(pool.imap(partial(
+                            self.calculate_energy,
+                            struc=struc.copy(),
+                            ffev=ffev,
+                            pose_coords=pose_coords,
+                            intra=True), [(pose,) for pose in range(nposes)],
+                            chunksize=calculate_chunks(nposes=nposes, ncpus=self.ncpus))):
+                        self_nrgs[index] += energy
+                        pbar.update()
 
         # Save data as csv
         write_energies(outpath=outfile,
                        energies=self_nrgs,
-                       #energy_terms=['Bond', 'Angle', 'Dihedral', 'Improper', 'Vdw', 'Elec'],
-                       energy_terms=['Vdw', 'Elec'],
+                       energy_terms=energy_terms,
                        name_a='ligand_pose',
                        nconfs_a=nposes)
 
-    def run_pair_nrg(self, pose_coords: np.ndarray, mutations: List[Dict[str, Union[str, List[str]]]], nposes: int, ncpus: int = 1) -> NoReturn:
+    def run_pair_nrg(self, pose_coords: np.ndarray, nposes: int) -> NoReturn:
         """
         Calculate sidechain ligand energies
 
@@ -193,23 +146,18 @@ class FFScorer:
         ----------
         pose_coords: np.ndarray
             Ligand pose coordinates
-        mutations: list
-            List of dictionaries defining the mutations at different positions
         nposes: int
             Number of ligand poses
-        ncpus: int
-            Number of Cpu's to use for scoring [default: 1]
         """
         from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
         from pocketoptimizer.utility.molecule_types import backbone_atoms
 
-        structure_path_prepend = os.path.join(self.project_path, 'scaffold', self.forcefield, 'protein_params')
-        output_file_prepend = os.path.join(self.project_path, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'ligand_sidechain_{self.forcefield}')
-        for position in mutations:
+        structure_path_prepend = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params')
+        for position in self.mutations:
             chain, resid = position['chain'], position['resid']
             rotamer_path_prepend = os.path.join(self.rotamer_path, f'{chain}_{resid}')
             for resname in position['mutations']:
-                output_file = os.path.join(output_file_prepend, f'ligand_{chain}_{resid}_{resname}.csv')
+                output_file = os.path.join(self.lig_side, f'ligand_{chain}_{resid}_{resname}.csv')
                 # Check if pairwise-interaction energy file already exists
                 if os.path.isfile(output_file):
                     logger.info(f'Ligand-Sidechain interaction energy with residue: {chain}_{resid}_{resname} already computed.')
@@ -220,6 +168,7 @@ class FFScorer:
                 # Check if rotamers are computed for all mutations
                 try:
                     rotamer_mol = Molecule(os.path.join(rotamer_path_prepend, f'{resname}.pdb'))
+                    rotamer_mol.remove(backbone_atoms, _logger=False)
                 except:
                     logger.error(f'Missing rotamer for residue: {chain}_{resid}_{resname}.')
                     raise FileNotFoundError(
@@ -232,7 +181,11 @@ class FFScorer:
                     raise FileNotFoundError(f'Missing mutated protein-ligand-complex build for mutation {chain}_{resid}_{resname}.')
 
                 struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
-                ffev = FFEvaluate(struc, prm,
+
+                lig_sidechain = struc.copy()
+                lig_sidechain.filter(sel=f'(chain {chain} and resid {resid} and not ({backbone_atoms})) or segid L', _logger=False)
+
+                ffev = FFEvaluate(lig_sidechain, prm,
                                   betweensets=(f'chain {chain} and resid {resid} and not ({backbone_atoms})', 'segid L'))
 
                 batch = list(itertools.product(*[np.arange(nposes), np.arange(nrots)]))
@@ -240,18 +193,19 @@ class FFScorer:
                 pair_nrgs = np.zeros((nposes, nrots * 2))
 
                 with tqdm(total=len(batch), desc=f'Ligand/{chain}_{resid}_{resname}') as pbar:
-                    with mp.Pool(processes=ncpus) as pool:
+                    with mp.Pool(processes=self.ncpus) as pool:
                         for index, energy in enumerate(pool.imap(
                                 partial(
                                     self.calculate_energy,
-                                    struc=struc.copy(),
+                                    struc=lig_sidechain,
                                     ffev=ffev,
                                     pose_coords=pose_coords,
+                                    intra=False,
                                     rot_coords=rotamer_mol.coords,
                                     chain=chain,
                                     resid=resid
                                 ), batch,
-                                chunksize=calculate_chunks(nposes=len(batch), ncpus=ncpus))):
+                                chunksize=calculate_chunks(nposes=len(batch), ncpus=self.ncpus))):
                             pair_nrgs[batch[index][0], batch[index][1]*2:batch[index][1]*2 + 2] = energy
                             pbar.update()
 
@@ -264,29 +218,18 @@ class FFScorer:
                                name_b=resname,
                                nconfs_b=nrots)
 
-    def run_ff_scorer(self, mutations: List[Dict[str, Union[str, List[str]]]], ncpus: int = 1) -> NoReturn:
+    def run_ff_scorer(self) -> NoReturn:
         """
-        Run Ligand ff scoring
-
-        Parameters
-        ----------
-        mutations: list
-            List of dictionaries defining the mutations at different positions
-        ncpus: int
-            Number of CPUs to use for scoring [default: Number of CPUs available]
+        Run ligand force field scoring
         """
         logger.info(f'Score ligand interactions using {self.forcefield} force field.')
 
-        # Output ligand scaffold energy
-        self.lig_scaff = os.path.join(self.project_path, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'ligand_scaffold_{self.forcefield}')
         os.makedirs(self.lig_scaff, exist_ok=True)
-        # Output ligand side chain energies
-        self.lig_side = os.path.join(self.project_path, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'ligand_sidechain_{self.forcefield}')
         os.makedirs(self.lig_side, exist_ok=True)
 
         try:
-            ligand_poses = Molecule(self.ligand_poses)
-            ligand_poses.read(f'{os.path.splitext(self.ligand_poses)[0]}.xtc')
+            ligand_poses = Molecule(self.ligand_poses_pdb)
+            ligand_poses.read(self.ligand_poses_xtc)
         except:
             logger.error('Missing ligand poses.')
             raise FileNotFoundError('Missing ligand poses.')
@@ -299,8 +242,7 @@ class FFScorer:
 
         else:
             logger.info(f'Ligand-Scaffold/Self interaction energy not computed yet.')
-            self.run_self_nrg(pose_coords=pose_coords, mutations=mutations, nposes=nposes,
-                              outpath=self.lig_scaff, ncpus=ncpus)
+            self.run_self_nrg(pose_coords=pose_coords, nposes=nposes)
 
-        self.run_pair_nrg(pose_coords=pose_coords, mutations=mutations, nposes=nposes, ncpus=ncpus)
+        self.run_pair_nrg(pose_coords=pose_coords, nposes=nposes)
         logger.info('Ligand scoring was successful.')

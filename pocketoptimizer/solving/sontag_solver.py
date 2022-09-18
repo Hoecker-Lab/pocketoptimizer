@@ -7,6 +7,7 @@ from typing import Dict, Union, NoReturn
 import logging
 
 from pocketoptimizer.utility.index_mapper import IndexMapper
+from pocketoptimizer.ui import DesignPipeline
 
 logger = logging.getLogger(__name__)
 
@@ -111,7 +112,7 @@ def exclude_solutions(exclude: str, ligand_index: int, pair_count: int, penalty_
                     lambda_out.flush()
 
 
-def calculate_design_solutions(solver_bin: str, temp_dir: str, out_path: str, num_solutions: int = 10,
+def calculate_design_solutions(solver_bin: str, design_pipeline: DesignPipeline, temp_dir: str, out_path: str, num_solutions: int = 10,
                                penalty_energy: float = 1e10, exclude: str = None, keep_tmp: bool = False) -> NoReturn:
     """
     Iteratively submit design jobs with the Sontag solver, allowing each ligand pose to appear only once in a solution.
@@ -120,6 +121,8 @@ def calculate_design_solutions(solver_bin: str, temp_dir: str, out_path: str, nu
     ----------
     solver_path: str
         Path to solver binary
+    design_pipeline: :class: DesignPipeline
+        DesignPipeline object for initialization
     temp_dir: str
         Path to temporary directory storing the sontag solutions
     out_path: str
@@ -134,7 +137,8 @@ def calculate_design_solutions(solver_bin: str, temp_dir: str, out_path: str, nu
         Whether the temporary directory should be removed or kept in the end [default: False]
     """
     logger.info('Calculating Solutions.')
-    index_mapper = IndexMapper.from_index_file(os.path.join(out_path, 'index.dat'))
+    index_mapper = IndexMapper.from_index_file(filename=os.path.join(out_path, 'index.dat'),
+                                               design_pipeline=design_pipeline)
 
     if index_mapper.get_conf_count_for_pos('ligand') < num_solutions:
         num_solutions = index_mapper.get_conf_count_for_pos('ligand')

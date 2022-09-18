@@ -1,45 +1,26 @@
 import os
-from typing import List, Dict, Union, NoReturn
+from typing import List, NoReturn
 import numpy as np
 import pandas as pd
 from moleculekit.molecule import Molecule
 
+from pocketoptimizer.utility.utils import Storer
 from pocketoptimizer.utility.index_mapper import IndexMapper
 
 
-class DesignSolution:
+class DesignSolution(Storer):
     """
     Class that can be used to parse a Sontag solver outfile, extract
        the solutions from it, and generate readable reports and
        structure files of the proposed designs.
     """
 
-    def __init__(self, work_dir: str, mutations: List[Dict[str, Union[str, List[str]]]],
-                 forcefield: str, scaffold: str, rotamer_path: str, ligand: str, ligand_poses: str, peptide: bool,
-                 scorer: str, solution_file: str, index_file: str, energy_file: str):
+    def __init__(self, solution_file: str, index_file: str, energy_file: str, **kwargs):
         """
         Constructor
 
         Parameters
         ----------
-        work_dir: str
-            Path to working directory
-        mutations: list
-            List of all mutations, contains dictionaries as list entries
-        forcefield: str
-            Forcefield used for energy computations
-        scaffold: str
-            Path to minimized scaffold structure
-        rotamer_path: str
-            Path to sampeld side chain rotamers
-        ligand: str
-            Path to protonated ligand
-        ligand_poses: str
-            Path to ligand poses
-        peptide: bool
-            Whether the ligand is a peptide
-        scorer: str
-            Scoring method used to score ligand/protein interactions
         solution_file: str
             The path of the output file of the
             kingsford solver containing the solutions
@@ -49,16 +30,7 @@ class DesignSolution:
         energy_file: str
             Path of the solver input energy file
         """
-
-        self.work_dir = work_dir
-        self.mutations = mutations
-        self.forcefield = forcefield
-        self.scaffold = scaffold
-        self.rotamer_path = rotamer_path
-        self.ligand = ligand
-        self.ligand_poses = ligand_poses
-        self.peptide = peptide
-        self.scorer = scorer
+        super().__init__(**kwargs)
 
         self._raw_conf_indices = []
         # a list of indices for each solution extracted directly
@@ -112,7 +84,8 @@ class DesignSolution:
         # involving the ligand
         # [-3453.0, -5464.0, ...]
 
-        self.index_mapper = IndexMapper.from_index_file(index_file)
+        self.index_mapper = IndexMapper.from_index_file(filename=index_file,
+                                                        design_pipeline=kwargs['design_pipeline'])
         # self.index_mapper.readIndexFile(index_file)
         self.__read(solution_file, energy_file)
 
@@ -221,9 +194,9 @@ class DesignSolution:
         lig_i = self.index_mapper.get_pos_index('ligand')
         for solution in range(self.get_solution_number()):
             # calculate total energies by summing up the individual parts
-            total = 0
-            binding = 0
-            fold = 0
+            total = 0.0
+            binding = 0.0
+            fold = 0.0
             for index, self_energy in enumerate(self._self_energies[solution]):
                 total += self_energy
                 if index == lig_i:
@@ -248,9 +221,9 @@ class DesignSolution:
             detailed_self_energies = {}
             for position, (residue, idx) in solution.items():
                 if position == 'ligand':
-                    df = pd.read_csv(os.path.join(self.work_dir, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'ligand_scaffold_{self.scorer}', f'{residue}.csv'), delimiter='\t', index_col=0)
+                    df = pd.read_csv(os.path.join(self.lig_scaff, f'{residue}.csv'), delimiter='\t', index_col=0)
                 else:
-                    df = pd.read_csv(os.path.join(self.work_dir, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'sidechain_scaffold_{self.forcefield}', f'{position}_{residue}.csv'), delimiter='\t', index_col=0)
+                    df = pd.read_csv(os.path.join(self.side_scaff, f'{position}_{residue}.csv'), delimiter='\t', index_col=0)
                 # ['ligand_pose', 'gauss1', 'gauss2', 'repulsion', 'hydrophobic', 'hydrogen']
                 # or ['vdW', 'ES']
                 energy_components = list(df.columns)  # Skip ligand-pose
@@ -281,9 +254,9 @@ class DesignSolution:
                 res_b, col_id = solution[pose_b]
 
                 if pose_b == 'ligand':
-                    df = pd.read_csv(os.path.join(self.work_dir, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'ligand_sidechain_{self.scorer}', f'{res_b}_{pose_a}_{res_a}.csv'), delimiter='\t', index_col=0)
+                    df = pd.read_csv(os.path.join(self.lig_side, f'{res_b}_{pose_a}_{res_a}.csv'), delimiter='\t', index_col=0)
                 else:
-                    df = pd.read_csv(os.path.join(self.work_dir, 'energies', f'{self.forcefield}_{self.rotamer_path.split("/")[-1]}', f'sidechain_sidechain_{self.forcefield}', f'{pose_a}_{res_a}_{pose_b}_{res_b}.csv'), delimiter='\t', index_col=0)
+                    df = pd.read_csv(os.path.join(self.side_side, f'{pose_a}_{res_a}_{pose_b}_{res_b}.csv'), delimiter='\t', index_col=0)
 
                 energy_components = int(len(df.columns)/(int(df.columns[-1].split('_')[1]) + 1))
 
@@ -307,25 +280,18 @@ class DesignSolution:
         """
 
         # Read in ligand poses
-        ligand = Molecule(self.ligand)
-        ligand_poses = Molecule(self.ligand_poses)
-        ligand_poses.read(f'{os.path.splitext(self.ligand_poses)[0]}.xtc')
-        ligand_poses.set('segid', 'L')
-        if not self.peptide:
-            ligand_poses.set('resname', 'MOL')
+        ligand_poses = Molecule(self.ligand_poses_pdb)
+        ligand_poses.read(self.ligand_poses_xtc)
         # Read in minimized protein structure
-        scaffold = Molecule(self.scaffold)
+        scaffold = Molecule(self.built_scaffold)
 
         for num, solution in enumerate(self._solution_confs):
 
             design_structure = scaffold.copy()
             ligand_idx = solution['ligand'][1]
-            lig_pose = ligand.copy()
-            lig_pose.set('segid', 'L')
-            if not self.peptide:
-                lig_pose.set('resname', 'MOL')
+            ligand = Molecule(self.ligand_protonated)
             # Set coords to coords of ligand pose of solution
-            lig_pose.set('coords', ligand_poses.coords[:, :, ligand_idx])
+            ligand.set('coords', ligand_poses.coords[:, :, ligand_idx])
             for pose in self.get_positions()[:-1]:
                 chain_id, res_id = pose.split('_')
                 residue, rotamer = solution[pose]
@@ -344,9 +310,9 @@ class DesignSolution:
                 design_structure.insert(residue_mol, insert_atom_idx)
             # Write ligand pose and scaffold structure to output directory
             if not self.peptide:
-                lig_pose.write(os.path.join(design_path, str(num), 'ligand.mol2'))
+                ligand.write(os.path.join(design_path, str(num), 'ligand.mol2'))
             else:
-                lig_pose.write(os.path.join(design_path, str(num), 'ligand.pdb'))
+                ligand.write(os.path.join(design_path, str(num), 'ligand.pdb'))
             design_structure.write(os.path.join(design_path, str(num), 'receptor.pdb'))
 
     def get_residue_for_positions(self, solution_index: int, position: str) -> str:

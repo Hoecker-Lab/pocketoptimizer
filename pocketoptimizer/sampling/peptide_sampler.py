@@ -5,11 +5,11 @@ import tempfile as tf
 from tqdm.auto import tqdm
 import multiprocessing as mp
 from functools import partial
-from typing import List, Dict, Union, NoReturn
+from typing import List, Dict, NoReturn
 import logging
-
 from moleculekit.molecule import Molecule
 from ffevaluation.ffevaluate import FFEvaluate
+
 from pocketoptimizer.sampling.sidechain_rotamers_ffev import FFRotamerSampler
 
 logger = logging.getLogger(__name__)
@@ -28,33 +28,18 @@ class PeptideSampler(FFRotamerSampler):
         * prune based on probability
     - save conformers into pdb file
     """
-    def __init__(self, work_dir: str, positions: List[Dict[str, Union[str, str]]], forcefield: str,
-                 params_folder: str = '', library: str = 'dunbrack', tmp: str = '/tmp/'):
-        """
-        Constructor method.
+    def __init__(self, library: str, positions: List[Dict[str, str]], **kwargs):
+        """Constructor method
 
         Parameters
-        ----------
-        work_dir: str
-            Path to working directory
-        positions: list
-            Dictionary containing chain and residue identifiers for the residues where rotamers should be sampled
-        forcefield: str
-            Force field to use for energy calculations
-        params_folder: str
-            Path to peptide parameters folder [default: '']
+        ---------
         library: str
-            Library to use for selecting rotamers, either setting coordinates from pdb after superimposing (cmlib)
-            or setting dihedral angles from dunbrack [default: 'dunbrack']
-        tmp: str
-            Temporary directory to write temporary files [default: '/tmp']
+            Rotamer library to use
+
         """
-        self.work_dir = work_dir
-        self.positions = positions
+        super().__init__(**kwargs)
         self.library = library
-        self.forcefield = forcefield
-        self.params = params_folder
-        self.tmp = tmp
+        self.positions = positions
 
     def merge_conformers(self, conf_ids: List[int], outfile: str) -> NoReturn:
             """
@@ -68,7 +53,7 @@ class PeptideSampler(FFRotamerSampler):
             """
             with open(outfile, 'w') as merged_rot_file:
                 for conf_id in conf_ids:
-                    with open(os.path.join(self.tmp, f'ligand_conf_{conf_id}.pdb'), 'r') as conf_file:
+                    with open(os.path.join(self.tmp_dir, f'ligand_conf_{conf_id}.pdb'), 'r') as conf_file:
                         for line in conf_file:
                             if line.startswith('MODEL'):
                                 line = f'MODEL        {str(conf_id)}\n'
@@ -78,7 +63,7 @@ class PeptideSampler(FFRotamerSampler):
                             merged_rot_file.write(line)
                 merged_rot_file.write('END')
 
-    def calculate_internal_energy(self, conf_id: int, structure: Molecule, ffev: FFEvaluate) -> np.float:
+    def calculate_energy(self, conf_id: int, structure: Molecule, ffev: FFEvaluate) -> np.float:
         """
         Calculates the energy of a peptide conformation
 
@@ -98,32 +83,25 @@ class PeptideSampler(FFRotamerSampler):
         # Set coordinates to coordinates of conformer
         structure.set('coords', structure.coords[:, :, conf_id])
         energies = ffev.calculateEnergies(structure.coords[:, :, conf_id])
-        structure.write(os.path.join(self.tmp, f'ligand_conf_{conf_id}.pdb'))
-        total_nrg = 0.0
-        for term, nrg in energies.items():
-            if term != 'total':
-                if term == 'elec':
-                    total_nrg += nrg * 0.01
-                else:
-                    total_nrg += nrg
+        structure.write(os.path.join(self.tmp_dir, f'ligand_conf_{conf_id}.pdb'))
 
-        return total_nrg
+        return energies['total']
 
-    def conformer_sampling(self, nrg_thresh: float = 100.0, dunbrack_filter_thresh: float = -1,
-                           expand: List[str] = [], ncpus: int = 1, _keep_tmp: bool = False) -> NoReturn:
+    def conformer_sampling(self, nrg_thresh: float = 100.0, dunbrack_prob: float = -1,
+                           expand: List[str] = [], accurate: bool = False, _keep_tmp: bool = False) -> NoReturn:
         """
         Parameters
         ----------
         nrg_thresh: float
             Filtering threshold to avoid clashes. [default: 100 kcal/mol]
-        dunbrack_filter_thresh: float
+        dunbrack_prob: float
             Filter threshold, rotamers having probability of occurence lower than filter threshold will
             be pruned if their rotameric mode does occur more than once
             (-1: no pruning, 1: pruning of all rotamers with duplicate rotamer modes) [default: -1]
         expand: list
             List of chi angles to expand [default: ['chi1', 'chi2']]
-        ncpus: int
-            Nubmer of CPUs to use for multiprocessing [default: 1]
+        accurate: bool
+            Whether to expand chi-angles by +/-2 std or also +/-1 std
         _keep_tmp: bool
             If the tmp directory should be deleted or not. Useful for debugging. [default: False]
         """
@@ -143,16 +121,16 @@ class PeptideSampler(FFRotamerSampler):
             logger.info('Conformers are already sampled.')
             return
 
-        self.tmp = tf.mkdtemp(dir=self.tmp, prefix='calculateRotamers_')
-        os.chdir(self.tmp)
+        self.tmp_dir = tf.mkdtemp(dir=self.tmp_dir, prefix='calculateRotamers_')
+        os.chdir(self.tmp_dir)
 
         logger.info('Start conformer sampling procedure.')
 
-        mutation_processor = MutationProcessor(structure=os.path.join(self.work_dir, 'ligand', self.forcefield, 'ligand.pdb'),
+        mutation_processor = MutationProcessor(structure=self.ligand_protonated,
                                                mutations=self.positions,
                                                forcefield=self.forcefield)
         termini_positions = mutation_processor.check_termini()
-        struc, prm = load_ff_parameters(structure_path=self.params,
+        struc, prm = load_ff_parameters(structure_path=self.built_ligand_params['params_folder'],
                                         forcefield=self.forcefield)
         confs = struc.copy()
 
@@ -196,10 +174,11 @@ class PeptideSampler(FFRotamerSampler):
                         rotamers = self.read_db(resname=_resname,
                                                 phi_angle=phi_angle,
                                                 psi_angle=psi_angle,
-                                                prob_cutoff=dunbrack_filter_thresh)
+                                                prob_cutoff=dunbrack_prob)
 
                         rotamers = self.expand_dunbrack(rotamers=rotamers,
-                                                        expand=expand)
+                                                        expand=expand,
+                                                        accurate=accurate)
 
                 else:
                     logger.error(f'Library: {self.library} not implemented.')
@@ -240,13 +219,13 @@ class PeptideSampler(FFRotamerSampler):
 
         energies = np.ndarray(nconfs)
         with tqdm(total=nconfs, desc='Filter Conformers') as pbar:
-            with mp.Pool(processes=ncpus) as pool:
+            with mp.Pool(processes=self.ncpus) as pool:
                 for pose_id, energy in enumerate(pool.imap(
-                        partial(self.calculate_internal_energy,
+                        partial(self.calculate_energy,
                                 structure=confs.copy(),
                                 ffev=ffev
                                 ), np.arange(nconfs),
-                        chunksize=calculate_chunks(nposes=nconfs, ncpus=ncpus))):
+                        chunksize=calculate_chunks(nposes=nconfs, ncpus=self.ncpus))):
                     energies[pose_id] = energy
                     pbar.update()
         val_ids = [val_id[0] for val_id in np.argwhere(energies <= min(energies) + nrg_thresh)]
@@ -255,5 +234,5 @@ class PeptideSampler(FFRotamerSampler):
         logger.info(f'Generated {len(val_ids)} conformers.')
 
         if not _keep_tmp:
-            if os.path.isdir(self.tmp):
-                shutil.rmtree(self.tmp)
+            if os.path.isdir(self.tmp_dir):
+                shutil.rmtree(self.tmp_dir)

@@ -7,91 +7,55 @@ import logging
 import htmd.builder.amber as amber
 import htmd.builder.charmm as charmm
 import numpy as np
+from moleculekit.molecule import Molecule
+from moleculekit.projections.metricrmsd import MetricRmsd
 from moleculekit.tools.autosegment import autoSegment2
 from moleculekit.tools.preparation import systemPrepare
-from moleculekit.molecule import Molecule
+from openmm import app
+import openmm as mm
+from simtk import unit
+import parmed
 
-from pocketoptimizer.utility.utils import fix_parameters
+from pocketoptimizer.utility.utils import fix_parameters, load_ff_parameters, create_pairs, Storer
+from pocketoptimizer.utility.molecule_types import _BB_ATOMS
 from pocketoptimizer.preparation.aacodes import special2standard
-from pocketoptimizer.utility.utils import create_pairs
 from pocketoptimizer.path import path
 
 logger = logging.getLogger(__name__)
 
 
-class SystemBuilder:
+class SystemBuilder(Storer):
     """
     Class providing system building functionalities to create systems for force field energy computations and minimization.
     """
-    def __init__(self, work_dir: str, structure: str, forcefield: str, mutations: List[Dict[str, Union[str, List[str]]]] = None,
-                 ligand_params: Dict = {},  peptide: bool = False, obabel: str = 'obabel', antechamber: str = 'antechamber',
-                 parmchk2: str = 'parmchk2', match: str = '', tleap: str = 'tleap', psfgen: str = ''):
+    def __init__(self, structure: str, **kwargs):
         """
         Constructor method.
 
         Parameters
         ----------
-        work_dir: str
-            Path to project. Containing prepared ligand and protonated scaffold.
         structure: str
             path to prepared scaffold/ligand
-        forcefield: str
-            Force field that will be used as a building template
-        mutations: list
-            List of all mutations that should be build in the system. Contains dictionaries as list entries.
-            The dictionary should contain 'chain', 'resid', 'mutations' as keys. [default: None]
-        ligand_params: dict
-            Containing paths to ligand parameter files [default: {}]
-        peptide: bool
-            Whether to build for peptide [default: False]
-        obabel: str
-            Path to obabel binary [default: 'obabel']
-        antechamber: str
-            Path to antechamber binary [default: 'antechamber']
-        parmchk2: str
-            Path to parmchk2 binary [default: 'parmchk2']
-        match: str
-            Path to match perl script [default: '']
-        tleap: str
-            Path to tleap binary [default: 'tleap']
-        psfgen: str
-            Path to psfgen binary [default: '']
         """
-        self.work_dir = work_dir
+        super().__init__(**kwargs)
         self.structure = structure
-        self.forcefield = forcefield
-        self.mutations = mutations
-        self.ligand_params = ligand_params
-        self.peptide = peptide
-        self.obabel = obabel
-        self.antechamber = antechamber
-        self.parmchk2 = parmchk2
-        self.match = match
-        self.tleap = tleap
-        self.psfgen = psfgen
 
-    def prepare_protein(self, prepared_protein: str, keep_chains: str, pH: float = 7.2,
-                        discard_mols: List[Dict[str, str]] = None) -> NoReturn:
+    def prepare_protein(self, keep_chains: List[str], discard_mols: List[Dict[str, str]] = []) -> NoReturn:
         """
         Protein cleaning and protonation procedure using Moleculekit.
 
         The wanted protein chain gets extracted and cleaned from ions, molecules etc.
-        Gaps in the protein are closed and the protein protonated according to pH 7.2
+        Gaps in the protein are closed and the protein is protonated
 
         Parameters
-        ----------
-        prepared_protein: str
-            Path to write the prepared protein
         keep_chains: str
             Protein chain that will be extracted.
-        pH: float
-            pH value for side chain protonation. [default: 7.2]
         discard_mols: list
             List of dictionaries containing chain and resid of the molecules to discard.
-            In the case of amino acid ligands, these have to be manually discarded with this option. [default: None]]
+            In the case of amino acid ligands, these have to be manually discarded with this option. [default: []]
         """
         # check if protein is already prepared
-        if not os.path.isfile(prepared_protein):
+        if not os.path.isfile(self.prepared_protein):
             logger.info('Starting protein preparation.')
             renumber = False
             with open(self.structure, 'r') as origin_scaffold:
@@ -126,43 +90,33 @@ class SystemBuilder:
             prot.filter(filter_str, _logger=False)
 
             # Adding hydrogens and protonating
-            logger.info(f'Protonate protein according to pH: {pH}.')
-            prot_prep, prep_data = systemPrepare(prot, pH=pH, return_details=True, _molkit_ff=False)
+            logger.info(f'Protonate protein according to pH: {self.ph}.')
+            prot_prep, prep_data = systemPrepare(prot, pH=self.ph, return_details=True, _molkit_ff=False)
 
-            os.makedirs(os.path.split(prepared_protein)[0], exist_ok=True)
+            os.makedirs(os.path.split(self.prepared_protein)[0], exist_ok=True)
             # Finding gaps so gaps can get caps
             prot_prep = autoSegment2(prot_prep, _logger=False)
 
-            prot_prep.write(prepared_protein, type='pdb')
-            prep_data.to_excel(os.path.join(os.path.split(prepared_protein)[0], 'report.xlsx'))
+            prot_prep.write(self.prepared_protein, type='pdb')
+            prep_data.to_excel(os.path.join(os.path.split(self.prepared_protein)[0], 'report.xlsx'))
 
-            if not os.path.isfile(prepared_protein):
+            if not os.path.isfile(self.prepared_protein):
                 logger.error('Protein preparation failed.')
                 raise FileNotFoundError('Protein preparation failed.')
 
             # change scaffold name to prepared protein since new scaffold was prepared for building
-            self.structure = prepared_protein
+            self.structure = self.prepared_protein
 
             logger.info('Successfully prepared protein structure.')
         else:
             logger.info('Protein is already prepared.')
 
-    def prepare_peptide(self, prepared_peptide: str, pH: float = 7.2) -> NoReturn:
+    def prepare_peptide(self) -> NoReturn:
         """
-        Protein cleaning and protonation procedure using Moleculekit.
-
-        The wanted protein chain gets extracted and cleaned from ions, molecules etc.
-        Gaps in the protein are closed and the protein protonated according to pH 7.2
-
-        Parameters
-        ----------
-        prepared_peptide: str
-            Path to write the prepared protein
-        pH: float
-            pH value for side chain protonation. [default: 7.2]
+        Peptide cleaning and protonation procedure using Moleculekit.
         """
         # check if protein is already prepared
-        if not os.path.isfile(prepared_peptide):
+        if not os.path.isfile(self.ligand_protonated):
             logger.info('Starting peptide preparation.')
             renumber = False
             with open(self.structure, 'r') as origin_scaffold:
@@ -180,22 +134,22 @@ class SystemBuilder:
                 self.renumber_residues(prot=peptide)
 
             # Adding hydrogens and protonating
-            logger.info(f'Protonate peptide according to pH: {pH}.')
-            prot_prep, prep_data = systemPrepare(peptide, pH=pH, return_details=True, _molkit_ff=False)
+            logger.info(f'Protonate peptide according to pH: {self.ph}.')
+            prot_prep, prep_data = systemPrepare(peptide, pH=self.ph, return_details=True, _molkit_ff=False)
 
-            os.makedirs(os.path.split(prepared_peptide)[0], exist_ok=True)
+            os.makedirs(os.path.split(self.ligand_protonated)[0], exist_ok=True)
             prot_prep.set('chain', 'L')
             prot_prep.set('segid', 'L')
 
-            prot_prep.write(prepared_peptide, type='pdb')
-            prep_data.to_excel(os.path.join(os.path.split(prepared_peptide)[0], 'report.xlsx'))
+            prot_prep.write(self.ligand_protonated, type='pdb')
+            prep_data.to_excel(os.path.join(os.path.split(self.ligand_protonated)[0], 'report.xlsx'))
 
-            if not os.path.isfile(prepared_peptide):
+            if not os.path.isfile(self.ligand_protonated):
                 logger.error('Peptide preparation failed.')
                 raise FileNotFoundError('Peptide preparation failed.')
 
             # change scaffold name to prepared protein since new scaffold was prepared for building
-            self.structure = prepared_peptide
+            self.structure = self.ligand_protonated
 
             logger.info('Successfully prepared peptide structure.')
         else:
@@ -266,23 +220,24 @@ class SystemBuilder:
         if 'UNK' in peptide.resname:
             logger.error('Unknown amino acid in protein. No parametrization in system building possible. Remove it from protein or provide parameters.')
             raise RuntimeError('Unknown amino acid in protein. No parametrization in system building possible. Remove it from protein or provide parameters.')
-        if self.mutations:
+        if self.peptide_mutations:
             self.mutate_peptide(struc=peptide)
 
         else:
-            if not os.path.isfile(os.path.join(self.ligand_params['params_folder'], 'structure.pdb')):
+            if not os.path.isfile(os.path.join(self.built_ligand_params['params_folder'], 'structure.pdb')):
                 logger.info('Build native protein.')
                 self.build_ff(
                     structure=peptide,
-                    outdir=self.ligand_params['params_folder'],
+                    outdir=self.built_ligand_params['params_folder'],
                 )
             else:
                 logger.info('Peptide already built.')
 
         # Copy the structure since mutations can occur
-        shutil.copy(os.path.join(self.ligand_params['params_folder'], 'structure.pdb'), os.path.abspath(os.path.join(self.ligand_params['params_folder'], '..', 'ligand.pdb')))
+        shutil.copy(os.path.join(self.built_ligand_params['params_folder'], 'structure.pdb'),
+                    os.path.abspath(os.path.join(self.built_ligand_params['params_folder'], '..', 'ligand.pdb')))
 
-    def build_complex(self, ligand: str, sampling_pocket: str = 'GLY') -> NoReturn:
+    def build_complex(self, sampling_pocket: str = 'GLY') -> NoReturn:
         """Builds proteins for force field computations with ligand inside.
 
         Force field computations need .param/.psf files for proteins or .frcmod/.rtf/.prm files for ligands, depending on the force field.
@@ -296,8 +251,6 @@ class SystemBuilder:
 
         Parameters
         ----------
-        ligand: str
-            Path to ligand.sdf file
         sampling_pocket: str
             What type of sampling pockets to build for rotamer and ligand pose sampling procedures
             In theory every pocket is possible, but only glycine and alanine are meanigful [default: GLY]
@@ -305,7 +258,7 @@ class SystemBuilder:
         # Merge scaffold and ligand into one molecule
         prot = Molecule(self.structure)
 
-        lig = Molecule(ligand)
+        lig = Molecule(self.ligand_protonated)
         lig.set('segid', 'L')
         lig.set('chain', 'L')
         if not self.peptide:
@@ -452,16 +405,16 @@ class SystemBuilder:
         struc: :class: moleculekit.molecule.Molecule
             Object of molecule which will be mutated
         """
-        if not os.path.isfile(os.path.join(self.ligand_params['params_folder'], 'structure.pdb')):
+        if not os.path.isfile(os.path.join(self.built_ligand_params['params_folder'], 'structure.pdb')):
             mut_structure = struc.copy()
-            for position in self.mutations:
+            for position in self.peptide_mutations:
                 chain, resid, aa = position['chain'], position['resid'], position['mutations'][0]
                 logger.info(f'Mutate resid {resid} to {aa}.')
                 mut_structure.mutateResidue(sel=f'chain {chain} and resid {resid}', newres=aa)
 
             self.build_ff(
                 structure=mut_structure,
-                outdir=self.ligand_params['params_folder'],
+                outdir=self.built_ligand_params['params_folder'],
             )
         else:
             logger.info(f'Mutated peptide already built.')
@@ -484,11 +437,11 @@ class SystemBuilder:
         # Create the output directories
         os.makedirs(outdir, exist_ok=True)
         # Load default force field parameters
-        if self.ligand_params and not self.peptide:
-            topo, param = self.get_ff_params(lig_mol2=self.ligand_params['mol2'],
-                                             lig_frcmod=self.ligand_params['frcmod'],
-                                             lig_rtf=self.ligand_params['rtf'],
-                                             lig_prm=self.ligand_params['prm'])
+        if self.built_ligand_params and not self.peptide:
+            topo, param = self.get_ff_params(lig_mol2=self.built_ligand_params['mol2'],
+                                             lig_frcmod=self.built_ligand_params['frcmod'],
+                                             lig_rtf=self.built_ligand_params['rtf'],
+                                             lig_prm=self.built_ligand_params['prm'])
         else:
             topo, param = self.get_ff_params()
 
@@ -604,7 +557,7 @@ class SystemBuilder:
                 m.to_csv(os.path.join(outdir, 'resid_map.csv'), index=False)
         bmol.write(os.path.join(outdir, 'structure.pdb'))
 
-    def parameterize_ligand(self, ph: float = None) -> NoReturn:
+    def parameterize_ligand(self, addHs: bool = True) -> NoReturn:
         """ Ligand preparation procedure
 
         Steps:
@@ -617,30 +570,31 @@ class SystemBuilder:
         2. Generate .prm/.rtf with MATCH-TYPER
 
         Parameters
-        ----------
-        pH: float
-            pH value for ligand protonation [default: None]
+        ---------
+
+        addHs: bool
+            Whether to add hydrogen atoms [default: True]
         """
 
         if not os.path.isfile(self.structure):
             logger.error(f'Could not open: {self.structure}.')
             raise FileNotFoundError(f'Could not open: {self.structure}.')
 
-        ligand_mol2 = os.path.join(self.ligand_params['params_folder'], 'ligand.mol2')
-        ligand_pdb = os.path.join(self.ligand_params['params_folder'], 'ligand.pdb')
-        os.makedirs(self.ligand_params['params_folder'], exist_ok=True)
-        os.chdir(self.ligand_params['params_folder'])
+        ligand_mol2 = os.path.join(self.built_ligand_params['params_folder'], 'ligand.mol2')
+        ligand_pdb = os.path.join(self.built_ligand_params['params_folder'], 'ligand.pdb')
+        os.makedirs(self.built_ligand_params['params_folder'], exist_ok=True)
+        os.chdir(self.built_ligand_params['params_folder'])
 
         # Remove all protons and convert to mol2
         ligand = Molecule(self.structure)
-        if ph is not None:
+        if addHs:
             ligand.remove('element H', _logger=False)
         ligand.write(ligand_mol2)
 
-        # Protonate with Obabel
-        if ph is not None:
-            logger.info(f'Adding hydrogen atoms to the ligand according to pH: {ph}.')
-            protonate_command = [self.obabel, '-i', 'mol2', ligand_mol2, '-o', 'mol2', '-O', ligand_mol2, '--p', str(ph)]
+        if addHs:
+            # Protonate with Obabel
+            logger.info(f'Adding hydrogen atoms to the ligand according to pH: {self.ph}.')
+            protonate_command = [self.obabel, '-i', 'mol2', ligand_mol2, '-o', 'mol2', '-O', ligand_mol2, '--p', str(self.ph)]
             process = subprocess.Popen(protonate_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             stdout, stderr = process.communicate()
             if process.returncode != 0:
@@ -730,3 +684,115 @@ class SystemBuilder:
 
         logger.info('Ligand parametrization was successful.')
         os.chdir(self.work_dir)
+
+    def minimize_structure(self, structure_path: str, cuda: bool = False, restraint_bb: bool = True) -> NoReturn:
+        """
+        Minimization method utilizing OpenMM.
+        The structures will be initialized with the corresponding force
+        field and then be minimized until the energy converges.
+
+        Parameters
+        ----------
+        structure_path: str
+            Path to built complex
+        cuda: bool
+            Minimization on GPU. [default: False]
+        restraint_bb: bool
+            Applies a restraint on the backbone. [default: True]
+        """
+
+        if self.forcefield.startswith('amber'):
+            # Load Amber input files
+            structure, params = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
+            structure_prm = app.AmberPrmtopFile(os.path.join(structure_path, 'structure.prmtop'))
+            inpcrd = app.AmberInpcrdFile(os.path.join(structure_path, 'structure.crd'))
+            system = structure_prm.createSystem()
+        elif self.forcefield.startswith('charmm'):
+            # Load Charmm input files
+            structure, params = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
+            structure_prm = parmed.charmm.CharmmPsfFile(os.path.join(structure_path, 'structure.psf'))
+            inpcrd = app.PDBFile(os.path.join(structure_path, 'structure.pdb'))
+            system = structure_prm.createSystem(params)
+        else:
+            logger.error('Force field not supported.')
+            raise ValueError('Force field not supported.')
+        metric_rmsd = MetricRmsd(structure.copy(), 'all', pbc=False)
+
+        # Standard values for the integrator and tolerance constraint
+        temperature = self.temperature * unit.kelvin
+        friction = 1.0 / unit.picoseconds
+        error_tolerance = 2.0 * unit.femtoseconds
+        distance_tolerance = 0.00001
+        if not cuda:
+            # Default value
+            tolerance = 10 * unit.kilojoule/unit.mole
+        else:
+            # High tolerance so the CPU only pre-minimizes
+            tolerance = 1e6
+
+        # Prepare System and Integrator
+        cpu_integrator = mm.VariableLangevinIntegrator(
+            temperature,
+            friction,
+            error_tolerance
+        )
+
+        if restraint_bb:
+            # Applies an external force on backbone atoms
+            # This allows the backbone to stay rigid, while severe clashes can still be resolved
+            force = mm.CustomExternalForce("k*((x-x0)^2+(y-y0)^2+(z-z0)^2)")
+            force.addGlobalParameter("k", 5.0 * unit.kilocalories_per_mole / unit.angstroms ** 2)
+            force.addPerParticleParameter("x0")
+            force.addPerParticleParameter("y0")
+            force.addPerParticleParameter("z0")
+            for i, atom_crd in enumerate(inpcrd.positions):
+                if structure.name[i] in _BB_ATOMS:
+                    force.addParticle(i, atom_crd.value_in_unit(unit.nanometers))
+            system.addForce(force)
+
+        # Setup CPU minimization
+        cpu_integrator.setConstraintTolerance(distance_tolerance)
+        platform = mm.Platform.getPlatformByName('CPU')
+        properties = None
+        cpu_min = app.Simulation(structure_prm.topology, system, cpu_integrator, platform, properties)
+        cpu_min.context.setPositions(inpcrd.positions)
+        pre_min_state = cpu_min.context.getState(getEnergy=True, getForces=True)
+        pre_min_state_nrg = pre_min_state.getPotentialEnergy().in_units_of(unit.kilocalories_per_mole)
+        logger.info(f'Starting potential energy: {pre_min_state_nrg}.')
+        # The energy will only be minimized to the set tolerance value
+        cpu_min.minimizeEnergy(tolerance=tolerance)
+        position = cpu_min.context.getState(getPositions=True).getPositions()
+        post_min_state = cpu_min.context.getState(getEnergy=True, getForces=True)
+
+        if cuda:
+            # Get the pre-minimized state
+            min_coords = cpu_min.context.getState(getPositions=True)
+            # Setup GPU minimizer and integrator
+            platform = mm.Platform.getPlatformByName('CUDA')
+            properties = {'CudaPrecision': 'mixed'}
+            gpu_integrator = mm.VariableLangevinIntegrator(
+                temperature,
+                friction,
+                error_tolerance
+            )
+            gpu_integrator.setConstraintTolerance(distance_tolerance)
+            gpu_min = app.Simulation(structure_prm.topology, system, gpu_integrator, platform, properties)
+            gpu_min.context.setPositions(min_coords.getPositions())
+            # Minimize until convergence
+            gpu_min.minimizeEnergy()
+            position = gpu_min.context.getState(getPositions=True).getPositions()
+            post_min_state = gpu_min.context.getState(getEnergy=True, getForces=True)
+        post_min_state_nrg = post_min_state.getPotentialEnergy().in_units_of(unit.kilocalories_per_mole)
+        logger.info(f'Ending potential energy: {post_min_state_nrg}.')
+
+        app.PDBFile.writeFile(structure_prm.topology, position, open(self.built_scaffold, 'w'), keepIds=True)
+
+        # The OpenMM output PDB has usally messed up chains, segids etc.
+        # So we just set the minimized coordinates to the input structure
+        prot_min = Molecule(self.built_scaffold)
+        rmsd = float(metric_rmsd.project(prot_min))
+        logger.info(f'RMSD between minimized and unminimized structure: {str(round(rmsd, 4))} Å.')
+        structure.coords = prot_min.coords
+        if self.peptide:
+            structure.write(self.ligand_protonated, sel='segid L')
+        structure.write(self.built_scaffold, sel='not segid L')
