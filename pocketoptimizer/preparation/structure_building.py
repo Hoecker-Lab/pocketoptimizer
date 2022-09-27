@@ -793,6 +793,4 @@ class SystemBuilder(Storer):
         rmsd = float(metric_rmsd.project(prot_min))
         logger.info(f'RMSD between minimized and unminimized structure: {str(round(rmsd, 4))} Å.')
         structure.coords = prot_min.coords
-        if self.peptide:
-            structure.write(self.ligand_protonated, sel='segid L')
         structure.write(self.built_scaffold, sel='not segid L')

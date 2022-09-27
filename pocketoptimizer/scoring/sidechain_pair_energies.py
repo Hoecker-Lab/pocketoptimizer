@@ -22,10 +22,11 @@ class SidechainPairScorer(Storer):
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.energy_terms = ['Vdw', 'Elec']
 
     def calculate_energy(self, ids: Tuple[int], struc: Molecule, ffev: FFEvaluate,
                          res_a_coords: np.ndarray, res_b_coords: np.ndarray,
-                         resid_a: str, resid_b: str, chain_a: str, chain_b: str) -> Tuple[np.float]:
+                         resid_a: str, resid_b: str, chain_a: str, chain_b: str) -> np.ndarray:
         """
         Calculating the energy between two rotamers at two different positions
 
@@ -60,7 +61,7 @@ class SidechainPairScorer(Storer):
         struc.set('coords', res_a_coords[:, :, ids[0]], f'chain {chain_a} and resid {resid_a}')
         struc.set('coords', res_b_coords[:, :, ids[1]], f'chain {chain_b} and resid {resid_b}')
         energies = ffev.calculateEnergies(struc.coords)
-        return energies['vdw'], energies['elec'] * self.elec
+        return np.array([energies['vdw'], energies['elec'] * self.elec])
 
     def calculate_pairs(self) -> NoReturn:
         """
@@ -137,7 +138,7 @@ class SidechainPairScorer(Storer):
             batch = list(itertools.product(*[np.arange(nconfs_a), np.arange(nconfs_b)]))
 
             # Create array (nconfs * nconfs * 2 (vdw and es))
-            pair_nrgs = np.zeros((nconfs_a, nconfs_b * 2))
+            pair_nrgs = np.zeros((nconfs_a, nconfs_b * len(self.energy_terms)))
 
             with mp.Pool(processes=self.ncpus) as pool:
                 with tqdm(total=len(batch)) as pbar:
@@ -162,7 +163,7 @@ class SidechainPairScorer(Storer):
                     # Save data as csv
                     write_energies(outpath=outfile,
                                    energies=pair_nrgs,
-                                   energy_terms=['Vdw', 'Elec'],
+                                   energy_terms=self.energy_terms,
                                    name_a=resname_a,
                                    nconfs_a=nconfs_a,
                                    name_b=resname_b,

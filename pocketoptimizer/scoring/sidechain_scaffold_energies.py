@@ -19,11 +19,12 @@ class SidechainSelfScorer(Storer):
     Utilizing molecular dynamics binding energy related computations
     Requires built complexes
     """
-    def __int__(self, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.energy_terms = ['Vdw', 'Elec']
 
     def calculate_energy(self, id: int, struc: Molecule, ffev: FFEvaluate,
-                         res_coords: np.ndarray, resid: str, chain: str, intra: bool) -> Tuple[np.float]:
+                         res_coords: np.ndarray, resid: str, chain: str) -> np.ndarray:
         """
         Calculating the energy between a rotamer and a fixed protein scaffold, or
         calculate the internal energy
@@ -44,21 +45,16 @@ class SidechainSelfScorer(Storer):
             Residue ID of the mutated residue
         chain: str
             Chain ID of the mutated residue
-        intra:
-            Whether to calculate the internal energy of a rotamer
 
         Returns
         -------
-        Tuple with energy components
+        Array containing vdw and electrostatic energies
         """
 
         # Set coordinates to current rotamer
         struc.set('coords', res_coords[:, :, id], f'chain {chain} and resid {resid}')
         energies = ffev.calculateEnergies(struc.coords)
-        if not intra:
-            return energies['vdw'], energies['elec'] * self.elec
-        else:
-            return energies['bond'], energies['angle'], energies['dihedral'], energies['improper'], energies['vdw'], energies['elec']
+        return np.array([energies['vdw'], energies['elec'] * self.elec])
 
     def calculate_scaffold(self) -> NoReturn:
         """
@@ -122,12 +118,7 @@ class SidechainSelfScorer(Storer):
                 # Generate FFEvaluate object for scoring between sidechain and rest of protein without sidechain
                 ffev = FFEvaluate(struc, prm, betweensets=(fixed_selection, variable_selection))
 
-                if self.intra:
-                    energy_terms = ['Bond', 'Angle', 'Dihedral', 'Improper', 'Vdw', 'Elec']
-                else:
-                    energy_terms = ['Vdw', 'Elec']
-
-                self_nrgs = np.zeros((nconfs, len(energy_terms)))
+                self_nrgs = np.zeros((nconfs, len(self.energy_terms)))
 
                 with mp.Pool(processes=self.ncpus) as pool:
                     with tqdm(total=nconfs) as pbar:
@@ -138,10 +129,9 @@ class SidechainSelfScorer(Storer):
                                 ffev=ffev,
                                 res_coords=mol.coords,
                                 resid=resid,
-                                chain=chain,
-                                intra=False), np.arange(nconfs),
+                                chain=chain), np.arange(nconfs),
                                 chunksize=calculate_chunks(nposes=nconfs, ncpus=self.ncpus))):
-                            self_nrgs[index, -2:] = energy
+                            self_nrgs[index] = energy
                             pbar.update()
 
                 if self.intra:
@@ -158,8 +148,7 @@ class SidechainSelfScorer(Storer):
                                     ffev=ffev,
                                     res_coords=mol.coords,
                                     resid=resid,
-                                    chain=chain,
-                                    intra=True), np.arange(nconfs),
+                                    chain=chain), np.arange(nconfs),
                                     chunksize=calculate_chunks(nposes=nconfs, ncpus=self.ncpus))):
                                 self_nrgs[index] += energy
                                 pbar.update()
@@ -167,7 +156,7 @@ class SidechainSelfScorer(Storer):
                 # Save data as csv
                 write_energies(outpath=outfile,
                                energies=self_nrgs,
-                               energy_terms=energy_terms,
+                               energy_terms=self.energy_terms,
                                name_a=resname,
                                nconfs_a=nconfs)
 

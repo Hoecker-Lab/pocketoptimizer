@@ -119,7 +119,7 @@ class FFRotamerSampler(Storer):
         expand: list
             List of which chi angles to expand, [default: ['chi1', 'chi2']]
         accurate: bool
-            Whether to expand chi-angles by +/-2 std or also +/-1 std
+            Whether to expand chi-angles additionally by +/- 0.5 and 1 std
 
         Returns
         -------
@@ -139,7 +139,9 @@ class FFRotamerSampler(Storer):
                                                   chi_angle + 2 * rotamers['std'][i][j]])
                     if accurate:
                         rotamer_chi_angles[i][j].extend([chi_angle - 1 * rotamers['std'][i][j],
-                                                      chi_angle + 1 * rotamers['std'][i][j]])
+                                                         chi_angle - 0.5 * rotamers['std'][i][j],
+                                                         chi_angle + 0.5 * rotamers['std'][i][j],
+                                                         chi_angle + 1 * rotamers['std'][i][j]])
                 else:
                     rotamer_chi_angles[i].append([chi_angle])
 
@@ -223,7 +225,7 @@ class FFRotamerSampler(Storer):
                         merged_rot_file.write(line)
             merged_rot_file.write('END')
 
-    def rotamer_sampling(self, vdw_filter_thresh: float = 100.0, dunbrack_prob: float = -1,
+    def rotamer_sampling(self, vdw_filter_thresh: float = 100.0, dunbrack_prob: float = -1, include_native: bool = False,
                          expand: List[str] = ['chi1', 'chi2'], accurate: bool = False, _keep_tmp: bool = False) -> NoReturn:
         """
         Parameters
@@ -234,10 +236,12 @@ class FFRotamerSampler(Storer):
             Filter threshold, rotamers having probability of occurence lower than filter threshold will
             be pruned if their rotameric mode does occur more than once
             (-1: no pruning, 1: pruning of all rotamers with duplicate rotamer modes) [default: -1]
+        include_native: bool
+            Whether to include native rotamer [default: False]
         expand: list
             List of chi angles to expand [default: ['chi1', 'chi2']]
         accurate: bool
-            Whether to expand chi-angles by +/-2 std or also +/-1 std
+            Whether to expand chi-angles additionally by +/- 0.5 and 1 std
         _keep_tmp: bool
             If the tmp directory should be deleted or not. Useful for debugging. [default: False]
         """
@@ -345,6 +349,9 @@ class FFRotamerSampler(Storer):
                                                     rotamer[i] * (np.pi/180), bonds=bonds)
                         # append rotameric states as frames to residue
                         residue.appendFrames(current_rot)
+
+                    if not include_native:
+                        residue.dropFrames(drop=0)
 
                 nrots = residue.coords.shape[-1]
 

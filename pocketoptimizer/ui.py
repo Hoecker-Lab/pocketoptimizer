@@ -550,7 +550,7 @@ class DesignPipeline:
 
     def sample_sidechain_rotamers(self, library: str = 'dunbrack', vdw_filter_thresh: float = 100.0,
                                   dunbrack_filter_thresh: float = 0.01, expand: List[str] = ['chi1', 'chi2'],
-                                  accurate: bool = False) -> NoReturn:
+                                  accurate: bool = False, include_native: bool = True) -> NoReturn:
         """Uses the dunbrack or cm_lib rotamer library to compute possible rotamers of defined residues.
         Energies for rotamer pruning are calculated using ffevaluate with the amber_ff14SB or charmm36 force field
 
@@ -568,7 +568,9 @@ class DesignPipeline:
         expand: list
             List of which chi angles to expand, [default: ['chi1', 'chi2']]
         accurate: bool
-            Whether to expand chi-angles by +/-2 std or also +/-1 std
+            Whether to expand chi-angles by +/-1 std or also +/-0.5 std [default: False]
+        include_native: bool
+            Whether to include the native rotamers from the structure [default: True]
         """
 
         from pocketoptimizer.sampling.sidechain_rotamers_ffev import FFRotamerSampler
@@ -591,7 +593,8 @@ class DesignPipeline:
             vdw_filter_thresh=vdw_filter_thresh,
             dunbrack_prob=dunbrack_filter_thresh,
             expand=expand,
-            accurate=accurate)
+            accurate=accurate,
+            include_native=include_native)
         os.chdir(self.work_dir)
 
     def sample_lig_poses(self, method: str = 'grid', grid: Dict[str, List[float]] = None,
@@ -975,7 +978,7 @@ def main():
     parser = argparse.ArgumentParser(description='PocketOptimizer computational protein design pipeline CLI, for more options use API.')
     parser.add_argument('-ff', '--forcefield', type=str, nargs=1, help='Force field to be used either: amber_ff14SB or charmm36', default=['amber_ff14SB'], required=False)
     parser.add_argument('--elec', type=float, nargs=1, default=[0.01], help='Scaling factor for electrostatic components', required=False)
-    parser.add_argument('--intra', type=int, nargs=1, default=[0], help='NWhether to calculate internal energies', required=False)
+    parser.add_argument('--intra', type=int, nargs=1, default=[0], help='Whether to calculate internal energies', required=False)
     parser.add_argument('-r', '--receptor', type=str, nargs=1, help='Protein input structure file in pdb format', required=True)
     parser.add_argument('-l', '--ligand', type=str, nargs=1, help='Ligand input structure file', required=True)
     parser.add_argument('--peptide', type=int, nargs=1, default=[0], help='Whether ligand is peptide', required=False)
@@ -992,6 +995,7 @@ def main():
     parser.add_argument('--library', type=str, nargs=1, default=['dunbrack'], help='Rotamer library, options are: dunbrack or cmlib', required=False)
     parser.add_argument('--dunbrack_filter_thresh', type=float, nargs=1, default=[0.01], help='Filter threshold for the dunbrack rotamer library (value between 0 and 1)', required=False)
     parser.add_argument('--accurate', type=int, nargs=1, default=[0], help='Sampling more rotamers', required=False)
+    parser.add_argument('--include_native', type=int, nargs=1, default=[1], help='Include native rotamers', required=False)
     parser.add_argument('--nconfs', type=int, nargs=1, default=[50], help='Number of ligand conformers to sample', required=False)
     parser.add_argument('--rot', '--rot', type=float, nargs=1, default=[20], help='Maximum ligand rotation', required=False)
     parser.add_argument('--rot_steps', '--rot_steps', type=float, nargs=1, default=[20], help='Ligand rotation steps', required=False)
@@ -1080,7 +1084,8 @@ def main():
     design.sample_sidechain_rotamers(library=args.library[0],
                                      vdw_filter_thresh=args.vdw_thresh[0],
                                      dunbrack_filter_thresh=args.dunbrack_filter_thresh[0],
-                                     accurate=args.accurate[0])
+                                     accurate=args.accurate[0],
+                                     include_native=bool(args.include_native[0]))
     design.sample_lig_poses(method='grid',
                             grid={'trans': [args.trans[0], args.trans_steps[0]], 'rot': [args.rot[0], args.rot_steps[0]]} ,
                             vdw_filter_thresh=args.vdw_thresh[0],

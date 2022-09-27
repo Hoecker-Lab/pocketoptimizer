@@ -175,7 +175,7 @@ the following lines:
     design = po.DesignPipeline(work_dir='YOUR_PROJECT_PATH', # Path to working directory containing scaffold and ligand subdirectory
                                ph=pH_VALUE,                  # pH used for protein and ligand protonation
                                forcefield='YOUR_FORCEFIELD', # forcefield used for all energy computations
-                               intra=False,                  # Whether to score intramolecular energies or not
+                               intra=False,                  # Whether to score intramolecular energies (experimental)
                                elec=0.01,                    # Scaling factor for electrostatic energies
                                ncpus=8)                      # Number of CPUs for multiprocessing
 
@@ -184,10 +184,12 @@ Additionally, PocketOptimizer has two force fields implemented, the AMBER ff14SB
 These force fields contain parameters for all defined atom types
 and also energy functions to calculate the potential energy of the protein-ligand system. The energy functions mostly rely on
 harmonic potentials describing different bonded and non-bonded interactions.
-Besides you can define the number of CPUs used for all energy calculations.
-
-It is recommended to use PocketOptimizer in combination with a Jupyter notebook,
+You can also specify a scaling factor for the electrostatic components and decide whether to score intramolecular energies or not.
+Besides you can define the number of CPUs used for all energy calculations. It is recommended to use PocketOptimizer in combination with a Jupyter notebook,
 as it allows a more flexible and interactive use of the framework.
+
+**Warning**: If you want to use intramolecular energies in combination with the CHARMM36 force field, you need to install the
+latest version of `FFEvaluate <https://github.com/Acellera/ffevaluation>`_ from the GitHub repository.
 
 2.1 Preparation/Minimization
 ****************************
@@ -456,7 +458,8 @@ Side chain rotamers can be sampled with the following method based on the fixed 
         vdw_filter_thresh=100,       # Energy threshold of 100 kcal/mol
         dunbrack_filter_thresh=0.01, # Rotamers having a lower probability of occuring are discarded
         expand=['chi1','chi2'],      # Expand certain chi-angles by +/- 2 Std
-        accurate=False               # Samples more rotamers if True
+        accurate=False,              # Samples more rotamers if True
+        include_native=True          # Include the native rotamers from the minimized structure
         )
 
 This procedures will use the design mutations that were set in the previous step and a defined van
@@ -628,92 +631,8 @@ You can specify if you want to delete only the files related to the scaffold or 
 that were created during the design run and allows you to start an entirely new design in your working directory.
 
 
-6. Final Script
----------------
-
-Putting all the discussed steps together, the whole PocketOptimizer procedure
-can be defined inside one Python script:
-
-.. code-block:: python
-
-    # Append the PocketOptimizer Code
-    import sys
-    sys.path.append('YOUR_POCKETOPTIMIZER_PATH')
-
-    # Import the pocketoptimizer module
-    import pocketoptimizer as po
-
-    # Initialize PocketOptimizer
-
-    # Set the Path to your working directory which contains the scaffold and ligand folder
-    # Set a pH value or use the default value of 7.2
-    # Select a force field (either: charmm36 or amber_ff14SB)
-    design = po.DesignPipeline(work_dir='YOUR_PROJECT_PATH', ph=pH_VALUE, forcefield='YOUR_FORCEFIELD', ncpus=8)
-
-    design.prepare_protein(
-    protein_structure='scaffold/YOUR_PROTEIN.pdb',  # Input PDB
-    keep_chains=['A', 'B'],  # Specific protein chain to keep
-    backbone_restraint=True, #  Restrains the backbone during the minimization
-    cuda=False,              # Performs minimization on CPU instead of GPU
-    discard_mols=None        # Special molecules to exclude. Per default everything, but peptides have to be defined manually
-    )
-
-    #  Only necessary if you don't have ligand parameters.
-    design.parameterize_ligand(
-    input_ligand='ligand/YOUR_LIGAND.mol2', # Input ligand structure file could be .mol2/.sdf
-    )
-
-    # Your mutations
-    design.set_mutations([
-        {'mutations': ['ALA', 'ASN', 'GLU'], 'resid': '8', 'chain': 'A'},
-        {'mutations': ['LEU'], 'resid': '10', 'chain': 'A'},
-        {'mutations': ['SER'], 'resid': '12', 'chain': 'A'},
-        {'mutations': ['TYR'], 'resid': '28', 'chain': 'A'},
-        {'mutations': ['PHE'], 'resid': '115', 'chain': 'A'},
-    ])
-
-    # Prepares all defined mutants and glycine scaffolds for side chain rotamer and ligand pose sampling
-    design.prepare_mutants(sampling_pocket='GLY')
-
-    # Sampling of side chain rotamers
-    design.sample_sidechain_rotamers(
-        library='dunbrack',           # Library used for choosing rotamers, options are: dunbrack or cmlib
-        vdw_filter_thresh=100,        # Energy threshold of 100 kcal/mol
-        dunbrack_filter_thresh=0.01,  # Rotamers having a lower probability of occuring are discarded
-        )
-
-    design.prepare_lig_conformers(
-    nconfs=50,         # Maximum number of conformers to produce
-    method='genetic',  # Genetic method in OpenBabel, other option is confab
-    score='rmsd',      # For genetic method: filters conformers based on RMSD diversity or filtering based on energy diversity
-    #rcutoff: float = 0.5,  # Confab method: RMSD cutoff
-    #ecutoff: float = 50.0 # Confab method: Energy cutoff
-    )
-
-    # Sampling of ligand poses
-    # Defines a grid in which the ligand is translated and rotated along.
-    #                       Range, Steps
-    sample_grid = {'trans': [1, 0.5],  # Angstrom
-                   'rot': [20, 20]}    # Degree
-    design.sample_lig_poses(
-        method='grid',         #  Uses the grid method. Other option is random
-        grid=sample_grid,      #  Defined grid for sampling
-        vdw_filter_thresh=100, #  Energy threshold of 100 kcal/mol
-        max_poses=10000        #  Maximum number of poses
-    )
-
-
-    # Calculate the binding and packing energies of all ligand poses and side chain rotamers against each other and against the fixed scaffold
-    design.calculate_energies(
-        scoring='vina', #  Method to score protein-ligand interaction
-        elec=0.01       #  Scaling factor for electrostatics
-        )
-
-    # Compute the lowest energy structures using linear programming
-    design.design(
-        num_solutions=10,           #  Number of solutions to compute
-        ligand_scaling=100,         #  Scaling factor for protein-ligand interaction
-        )
+6. Command Line Interface
+-------------------------
 
 By running the python script: ui.py, you can also access the command line interface:
 
@@ -722,9 +641,10 @@ By running the python script: ui.py, you can also access the command line interf
     PocketOptimizer computational protein design pipeline CLI, for more options
     use API.
 
-    usage: ui.py [-h] [-ff FORCEFIELD] -r RECEPTOR -l LIGAND [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--min MIN] [--min_bb MIN_BB] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...] [--peptide_mutations [PEPTIDE_MUTATIONS ...]]
-                 [--flex_peptide_res [FLEX_PEPTIDE_RES ...]] [--vdw_thresh VDW_THRESH] [--library LIBRARY] [--dunbrack_filter_thresh DUNBRACK_FILTER_THRESH] [--nconfs NCONFS] [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS]
-                 [--max_poses MAX_POSES] [--sampling_pocket SAMPLING_POCKET] [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--cuda CUDA] [--clean CLEAN]
+    usage: ui.py [-h] [-ff FORCEFIELD] [--elec ELEC] [--intra INTRA] -r RECEPTOR -l LIGAND [--peptide PEPTIDE] [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--min MIN] [--min_bb MIN_BB] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...]
+                 [--peptide_mutations [PEPTIDE_MUTATIONS ...]] [--flex_peptide_res [FLEX_PEPTIDE_RES ...]] [--vdw_thresh VDW_THRESH] [--library LIBRARY] [--dunbrack_filter_thresh DUNBRACK_FILTER_THRESH] [--accurate ACCURATE] [--include_native INCLUDE_NATIVE]
+                 [--nconfs NCONFS] [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS] [--max_poses MAX_POSES] [--sampling_pocket SAMPLING_POCKET] [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS]
+                 [--cuda CUDA] [--clean CLEAN]
 
     PocketOptimizer computational protein design pipeline CLI, for more options use API.
 
@@ -732,10 +652,13 @@ By running the python script: ui.py, you can also access the command line interf
       -h, --help            show this help message and exit
       -ff FORCEFIELD, --forcefield FORCEFIELD
                             Force field to be used either: amber_ff14SB or charmm36
+      --elec ELEC           Scaling factor for electrostatic components
+      --intra INTRA         Whether to calculate internal energies
       -r RECEPTOR, --receptor RECEPTOR
                             Protein input structure file in pdb format
       -l LIGAND, --ligand LIGAND
                             Ligand input structure file
+      --peptide PEPTIDE     Whether ligand is peptide
       --ph PH               ph value for side chain and ligand protonation
       --keep_chains [KEEP_CHAINS ...]
                             Chains to keep by their chain identifiers
@@ -750,10 +673,13 @@ By running the python script: ui.py, you can also access the command line interf
       --flex_peptide_res [FLEX_PEPTIDE_RES ...]
                             Peptide residues to sample flexiblity
       --vdw_thresh VDW_THRESH
-                            VdW-energy threshold for rotamer and ligand pose sampling (kcal/mol)
+                            Energy threshold for rotamer and ligand pose sampling (kcal/mol)
       --library LIBRARY     Rotamer library, options are: dunbrack or cmlib
       --dunbrack_filter_thresh DUNBRACK_FILTER_THRESH
                             Filter threshold for the dunbrack rotamer library (value between 0 and 1)
+      --accurate ACCURATE   Sampling more rotamers
+      --include_native INCLUDE_NATIVE
+                            Include native rotamers
       --nconfs NCONFS       Number of ligand conformers to sample
       --rot ROT, --rot ROT  Maximum ligand rotation
       --rot_steps ROT_STEPS, --rot_steps ROT_STEPS
@@ -770,9 +696,16 @@ By running the python script: ui.py, you can also access the command line interf
       --scaling SCALING     Ligand scaling factor
       --num_solutions NUM_SOLUTIONS
                             Number of design solutions to calculate
-      --ncpus NCPUS         Number of CPUs for multiprocesing
+      --ncpus NCPUS         Number of CPUs for multiprocessing
       --cuda CUDA           Enabling cuda for GPU based minimization, default: No cuda
       --clean CLEAN         Clean the working directory
+
+LICENSE
+-------
+
+PocketOptimizer is licensed under the GNU GENERAL PUBLIC LICENSE however we would like to point out
+the `HTMD Software Academic License Agreement <https://github.com/Acellera/moleculekit/blob/main/LICENSE>`_
+which makes the software for academic use only.
 
 
 Publications

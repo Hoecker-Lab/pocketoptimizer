@@ -23,9 +23,10 @@ class LigandScorer(Storer):
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.energy_terms = ['Vdw', 'Elec']
 
-    def calculate_energy(self, ids: Tuple[int], struc: Molecule, ffev: FFEvaluate, pose_coords: np.ndarray, intra: bool,
-                        rot_coords: np.ndarray = None, resid: str = None, chain: str = None) -> Tuple[np.float]:
+    def calculate_energy(self, ids: Tuple[int], struc: Molecule, ffev: FFEvaluate, pose_coords: np.ndarray,
+                        rot_coords: np.ndarray = None, resid: str = None, chain: str = None) -> np.ndarray:
         """Calculates the force field components and returns the energies
 
         Parameters
@@ -36,8 +37,6 @@ class LigandScorer(Storer):
             Object of Molecule to set the rotamer coordinates
         ffev: :class:ffevaluation.ffevaluate.FFevaluate
             Object to calculate the energies from between sets ligand and side chain/scaffold
-        intra: bool
-            Whether to score ligand against scaffold or internally
         rot_coords: list
             Rotamer coordinates np.array(natoms, 3, nrots)
         pose_coords: list
@@ -47,7 +46,7 @@ class LigandScorer(Storer):
 
         Returns
         -------
-        Tuple containing vdW and electrostatic energy for the scored ligand pose
+        Array containing vdW and electrostatic energy for the scored ligand pose
         """
         if len(ids) == 2:
             struc.set('coords', rot_coords[..., ids[1]], f'chain {chain} and resid {resid}')
@@ -55,10 +54,7 @@ class LigandScorer(Storer):
         # set coordinates to current ligand pose
         struc.set('coords', pose_coords[..., ids[0]], 'segid L')
         energies = ffev.calculateEnergies(struc.coords)
-        if not intra:
-            return energies['vdw'], energies['elec'] * self.elec
-        else:
-            return energies['bond'], energies['angle'], energies['dihedral'], energies['improper'], energies['vdw'], energies['elec']
+        return np.array([energies['vdw'], energies['elec'] * self.elec])
 
     def run_self_nrg(self, pose_coords: np.ndarray, nposes: int) -> NoReturn:
         """
@@ -92,12 +88,8 @@ class LigandScorer(Storer):
         struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
         ffev = FFEvaluate(struc, prm, betweensets=(selection, 'segid L'))
 
-        if self.intra:
-            energy_terms = ['Bond', 'Angle', 'Dihedral', 'Improper', 'Vdw', 'Elec']
-        else:
-            energy_terms = ['Vdw', 'Elec']
 
-        self_nrgs = np.zeros((nposes, len(energy_terms)))
+        self_nrgs = np.zeros((nposes, len(self.energy_terms)))
 
         with mp.Pool(processes=self.ncpus) as pool:
             with tqdm(total=nposes, desc='Ligand/Scaffold') as pbar:
@@ -106,11 +98,10 @@ class LigandScorer(Storer):
                             self.calculate_energy,
                             struc=struc,
                             ffev=ffev,
-                            pose_coords=pose_coords,
-                            intra=False
+                            pose_coords=pose_coords
                         ), [(pose,) for pose in range(nposes)],
                         chunksize=calculate_chunks(nposes=nposes, ncpus=self.ncpus))):
-                    self_nrgs[index, -2:] = energy
+                    self_nrgs[index] = energy
                     pbar.update()
 
         if self.intra:
@@ -125,8 +116,7 @@ class LigandScorer(Storer):
                             self.calculate_energy,
                             struc=struc.copy(),
                             ffev=ffev,
-                            pose_coords=pose_coords,
-                            intra=True), [(pose,) for pose in range(nposes)],
+                            pose_coords=pose_coords), [(pose,) for pose in range(nposes)],
                             chunksize=calculate_chunks(nposes=nposes, ncpus=self.ncpus))):
                         self_nrgs[index] += energy
                         pbar.update()
@@ -134,7 +124,7 @@ class LigandScorer(Storer):
         # Save data as csv
         write_energies(outpath=outfile,
                        energies=self_nrgs,
-                       energy_terms=energy_terms,
+                       energy_terms=self.energy_terms,
                        name_a='ligand_pose',
                        nconfs_a=nposes)
 
@@ -190,7 +180,7 @@ class LigandScorer(Storer):
 
                 batch = list(itertools.product(*[np.arange(nposes), np.arange(nrots)]))
                 # Create array (nposes * nrots * 2 (vdw and es))
-                pair_nrgs = np.zeros((nposes, nrots * 2))
+                pair_nrgs = np.zeros((nposes, nrots * len(self.energy_terms)))
 
                 with tqdm(total=len(batch), desc=f'Ligand/{chain}_{resid}_{resname}') as pbar:
                     with mp.Pool(processes=self.ncpus) as pool:
@@ -200,7 +190,6 @@ class LigandScorer(Storer):
                                     struc=lig_sidechain,
                                     ffev=ffev,
                                     pose_coords=pose_coords,
-                                    intra=False,
                                     rot_coords=rotamer_mol.coords,
                                     chain=chain,
                                     resid=resid
@@ -212,7 +201,7 @@ class LigandScorer(Storer):
                 # Save data as csv
                 write_energies(outpath=output_file,
                                energies=pair_nrgs,
-                               energy_terms=['Vdw', 'Elec'],
+                               energy_terms=self.energy_terms,
                                name_a='ligand_pose',
                                nconfs_a=nposes,
                                name_b=resname,

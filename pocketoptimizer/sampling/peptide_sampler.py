@@ -78,14 +78,14 @@ class PeptideSampler(FFRotamerSampler):
 
         Returns
         -------
-        Returns total energy
+        Returns vdw energy
         """
         # Set coordinates to coordinates of conformer
         structure.set('coords', structure.coords[:, :, conf_id])
         energies = ffev.calculateEnergies(structure.coords[:, :, conf_id])
         structure.write(os.path.join(self.tmp_dir, f'ligand_conf_{conf_id}.pdb'))
 
-        return energies['total']
+        return energies['vdw']
 
     def conformer_sampling(self, nrg_thresh: float = 100.0, dunbrack_prob: float = -1,
                            expand: List[str] = [], accurate: bool = False, _keep_tmp: bool = False) -> NoReturn:
@@ -202,7 +202,7 @@ class PeptideSampler(FFRotamerSampler):
                     # append rotameric states as frames to residue
                     residue.appendFrames(current_rot)
 
-            # Remove the first rotamer as it is already in the structure
+            # Remove the first rotamer
             residue.dropFrames(drop=0)
 
             for conf_id in range(confs.coords.shape[-1]):
