@@ -405,8 +405,8 @@ Another option would be to use external services like Frog or `Frog2 <https://bi
 
 The ligand pose sampling procedure requires the user to define a grid that specifies
 in which range possible ligand poses are going to be sampled. This procedure generates a number of poses from the
-sampled ligand conformers by translating and rotating them either along a user defined grid
-or randomly.
+sampled ligand conformers by translating and rotating them along a user defined grid. Alternatively, a random sampling procedure can
+be performed by setting the parameter method to ``random``.
 
 .. code-block:: python
 
@@ -416,7 +416,7 @@ or randomly.
     sample_grid = {'trans': [1, 0.5],  # Angstrom
                    'rot': [20, 20]}    # Degree
     design.sample_lig_poses(
-        method='grid',         #  Uses the grid method. Other option is random
+        method='grid',         #  Uses the 'grid' method. Other option is 'random'
         grid=sample_grid,      #  Defined grid for sampling
         vdw_filter_thresh=100, #  Energy threshold of 100 kcal/mol
         max_poses=10000        #  Maximum number of poses

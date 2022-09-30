@@ -88,7 +88,6 @@ class LigandScorer(Storer):
         struc, prm = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
         ffev = FFEvaluate(struc, prm, betweensets=(selection, 'segid L'))
 
-
         self_nrgs = np.zeros((nposes, len(self.energy_terms)))
 
         with mp.Pool(processes=self.ncpus) as pool:
