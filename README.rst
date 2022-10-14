@@ -121,16 +121,13 @@ There are multiple ways to obtain your molecule of choice.
 If you want to make a design for a molecule different from
 a ligand bound in your crystal structure, you can do a search on
 `RCSB <http://www.rcsb.org/pdb/ligand/chemAdvSearch.do>`_ for different kinds of ligands.
-This allows you to download a molecule in .sdf format.
-
-Another approach would be to draw your molecule using a program like `MarvinSketch <https://chemaxon.com/products/marvin>`_
-or `ChemSketch <https://www.acdlabs.com/resources/freeware/chemsketch/index.php>`_ and then to export it as a .mol2 or .sdf file.
+This allows you to download a molecule in the sdf format.
 
 If you already have a protein crystal structure with the desired ligand, you can also
 extract the ligand from the .pdb file using for example `PyMol <https://pymol.org/2/>`_. But beware that the ligand
 is missing all hydrogen atoms.
 
-**Disclaimer**: PocketOptimizer works with several input formats (mol2, sdf) that will be converted internally.
+**Note**: PocketOptimizer works with several input formats (mol2, sdf) that will be converted internally.
 
 
 1.2 Placing the ligand inside the binding pocket
@@ -170,23 +167,19 @@ the following lines:
     # Import the pocketoptimizer module
     import pocketoptimizer as po
 
-    # Initialize PocketOptimizer
-
-    design = po.DesignPipeline(work_dir='YOUR_PROJECT_PATH', # Path to working directory containing scaffold and ligand subdirectory
-                               ph=pH_VALUE,                  # pH used for protein and ligand protonation
-                               forcefield='YOUR_FORCEFIELD', # forcefield used for all energy computations
-                               intra=False,                  # Whether to score intramolecular energies (experimental)
-                               elec=0.01,                    # Scaling factor for electrostatic energies
+    # Initialize a new design pipeline
+    design = po.DesignPipeline(work_dir=project_dir,         # Path to working directory containing scaffold and ligand subdirectory
+                               ph=7,                         # pH used for protein and ligand protonation
+                               forcefield='amber_ff14SB',    # forcefield used for all energy computations (Use Amber as it is better tested!)
+                               intra=False,                  # Whether to score intramolecular energies or not (Experimental, should be turned off!)
+                               elec=1,                       # Scaling factor for electrostatic energies
                                ncpus=8)                      # Number of CPUs for multiprocessing
 
-While you are initializing you can define a pH, used for protonating the side chains of the protein and also the ligand molecule.
-Additionally, PocketOptimizer has two force fields implemented, the AMBER ff14SB and the CHARMM36 force field.
-These force fields contain parameters for all defined atom types
-and also energy functions to calculate the potential energy of the protein-ligand system. The energy functions mostly rely on
-harmonic potentials describing different bonded and non-bonded interactions.
-You can also specify a scaling factor for the electrostatic components and decide whether to score intramolecular energies or not.
-Besides you can define the number of CPUs used for all energy calculations. It is recommended to use PocketOptimizer in combination with a Jupyter notebook,
-as it allows a more flexible and interactive use of the framework.
+While you are initializing you can define a ``pH``, used for protonating the side chains of the protein and also the ligand molecule.
+Additionally, PocketOptimizer has two ``force fields`` implemented, the AMBER ff14SB and the CHARMM36 force field.
+These force fields contain parameters and energy functions to calculate the energy of the protein-ligand system.
+You can also specify a scaling factor for the ``electrostatic`` components and decide whether to score ``intramolecular energies`` or not.
+Besides you can define the ``number of CPUs`` used for all energy calculations.
 
 **Warning**: If you want to use intramolecular energies in combination with the CHARMM36 force field, you need to install the
 latest version of `FFEvaluate <https://github.com/Acellera/ffevaluation>`_ from the GitHub repository.
@@ -225,9 +218,8 @@ PocketOptimizer offers a python interface utilizing these tools to parameterize 
     addHs=True                              # Whether to add hydrogen atoms to the input structure
     )
 
-This creates a ``ligand.mol2`` structure file and additionally either a ``ligand.frcmod`` or ``ligand.prm`` and ``ligand.rtf`` parameter files in the ``ligand``
-directory under the ``FORCE_FIELD/params`` sub-directory. Before you proceed, take a look at those files if the structure is correct
-and suits your needs:
+This creates a ``ligand.mol2`` structure file and additionally either a ``ligand.frcmod`` or ``ligand.prm``/``ligand.rtf`` parameter files in the ``ligand``
+directory under ``FORCE_FIELD/params``. Before you proceed, take a look at those files if the structure is correct protonated and suits your needs.
 
 ::
 
@@ -261,7 +253,7 @@ notebook and type the following:
         minimize=True,           # Whether to minimize the input protein structure
         backbone_restraint=True, #  Restrains the backbone during the minimization
         cuda=False,              # Performs minimization on CPU instead of GPU
-        discard_mols=[]        # Special molecules to exclude. Per default everything, but peptides have to be defined manually
+        discard_mols=[]          # Special molecules to exclude. Per default everything, but peptides have to be defined manually
         )
 
 This allows to minimize the structure with or without the backbone being constrained.
@@ -324,17 +316,15 @@ You can also use certain keywords to try out a number of amino acids, grouped by
 
 .. code-block:: python
 
-        design.aa = {
-            'ALL': ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE',
-                    'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL'],
-            'AROMATIC': ['PHE', 'TRP', 'TYR', 'HIS'],
-            'AMIDE': ['ASN', 'GLN'],
-            'ALIPHATIC': ['GLY', 'ALA', 'VAL', 'LEU', 'ILE'],
-            'ACIDIC': ['ASP', 'GLU'],
-            'BASIC': ['LYS', 'ARG', 'HIS'],
-            'HYDRO': ['SER', 'THR'],
-            'SULF': ['CYS', 'MET']
-        }
+        'ALL': ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HID', 'HIE', 'HIP',
+                'ILE', 'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL'],
+        'AROMATIC': ['PHE', 'TRP', 'TYR'],
+        'AMIDE': ['ASN', 'GLN'],
+        'ALIPHATIC': ['GLY', 'ALA', 'VAL', 'LEU', 'ILE'],
+        'ACIDIC': ['ASP', 'GLU'],
+        'BASIC': ['LYS', 'ARG'],
+        'HYDRO': ['SER', 'THR'],
+        'SULF': ['CYS', 'MET']
 
 Once you are done and the mutations are defined, you can start preparing the
 mutated scaffolds for the later energy and scoring calculations
@@ -345,7 +335,6 @@ the ``protein_params`` sub-folder):
 
     # Prepares all defined mutants and glycine scaffolds for side chain rotamer and ligand pose sampling
     design.prepare_mutants(sampling_pocket='GLY')
-
 
 **Hint**: Testing additional residues/mutations later on is not a problem.
 PocketOptimizer dynamically detects which mutations/calculations already exist and only calculates additional ones.
@@ -384,7 +373,7 @@ procedures. PocketOptimizer has an interface for the latter:
 
         # Obabel conformer generation
         design.prepare_lig_conformers(
-        nconfs=50,         # Maximum number of conformers to produce
+        nconfs=50,         # Maximum number of conformers to produce (Sometimes these methods produce lower number of conformations)
         method='genetic',  # Genetic method in OpenBabel, other option is confab
         score='rmsd',      # For genetic method: filters conformers based on RMSD diversity or filtering based on energy diversity
         #rcutoff=0.5,  # Confab method: RMSD cutoff
@@ -454,12 +443,11 @@ Side chain rotamers can be sampled with the following method based on the fixed 
 
     # Sampling of side chain rotamers
     design.sample_sidechain_rotamers(
-        library='dunbrack',          # Library used for choosing rotamers, options are: dunbrack or cmlib
-        vdw_filter_thresh=100,       # Energy threshold of 100 kcal/mol
-        dunbrack_filter_thresh=0.01, # Rotamers having a lower probability of occuring are discarded
-        expand=['chi1','chi2'],      # Expand certain chi-angles by +/- 2 Std
-        accurate=False,              # Samples more rotamers if True
-        include_native=True          # Include the native rotamers from the minimized structure
+        vdw_filter_thresh=100,         # Energy threshold of 100 kcal/mol for filtering rotamers
+        library='dunbrack',            # Use dunbrack rotamer library (Should be used!)
+        dunbrack_filter_thresh=0.001,  # Probability threshold for filtering rotamers (0.1%)
+        accurate=False,                # Increases the number of rotamers sampled when using dunbrack (Be careful about the computation time!)
+        include_native=True            # Include the native rotamers from the minimized structure
         )
 
 This procedures will use the design mutations that were set in the previous step and a defined van
@@ -493,7 +481,7 @@ All accepted rotamers are contained in .pdb files and their energies are contain
 ----------------------
 
 Next all protein-protein and protein-ligand interaction energies are calculated, the protein-protein interaction energies are evaluated from force fields,
-whereas the protein-ligand interaction energies can be also evaluated using different scoring functions. Scoring functions are in principle based on energy functions.
+whereas the protein-ligand interaction energies can be also evaluated using different scoring functions. To get an overview over all available scoring functions:
 
 .. code-block:: python
 
@@ -502,7 +490,6 @@ whereas the protein-ligand interaction energies can be also evaluated using diff
     {'smina': ['vina', 'vinardo', 'ad4_scoring'],
      'ff': ['amber_ff14SB', 'charmm36']}
 
-gives you an overview over all available scoring functions implemented in PocketOptimizer.
 To calculate the energies:
 
 .. code-block:: python
@@ -510,7 +497,6 @@ To calculate the energies:
     # Calculate the binding and packing energies of all ligand poses and side chain rotamers against each other and against the fixed scaffold
     design.calculate_energies(
         scoring='vina', #  Method to score protein-ligand interaction
-        elec=0.01       #  Scaling factor for electrostatics
         )
 
 This step also defines the used scoring function (to change it repeat the step and use a different scoring function).
@@ -553,7 +539,7 @@ The final designs can be calculated with:
     # Compute the lowest energy structures using linear programming
     design.design(
         num_solutions=10,           #  Number of solutions to compute
-        ligand_scaling=10          #  Scaling factor for protein-ligand interaction
+        ligand_scaling=10,          #  Scaling factor for binding-related energies (You need to adapt this to approximate the packing and binding energies)
     )
 
 which first prepares input files for the optimizer and then creates output

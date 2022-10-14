@@ -249,7 +249,7 @@ class DesignPipeline:
         self.library = library
         self.rotamer_path = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'rotamers', self.library)
 
-    def set_temperature(self, temperature: float) -> NoReturn:
+    def _set_temperature(self, temperature: float) -> NoReturn:
         """
         Sets the temperature used in the design
 
@@ -373,7 +373,8 @@ class DesignPipeline:
                     from pocketoptimizer.utility.utils import MutationProcessor
                     mutation_processor = MutationProcessor(structure=peptide_structure,
                                                            mutations=peptide_mutations,
-                                                           forcefield=self.forcefield)
+                                                           forcefield=self.forcefield,
+                                                           non_standard_aa=True)
                     peptide_mutations = mutation_processor.process_mutations(check_termini=False)
                     for mutation in peptide_mutations:
                         mutation.update((k, 'L') for k, v in mutation.items() if k == 'chain')
@@ -412,16 +413,10 @@ class DesignPipeline:
                 input_path = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', 'native_complex')
 
                 if minimize:
-                    if not self.peptide:
-                        system.minimize_structure(
-                            structure_path=input_path,
-                            cuda=cuda,
-                            restraint_bb=backbone_restraint)
-                    else:
-                        system.minimize_structure(
-                            structure_path=input_path,
-                            cuda=cuda,
-                            restraint_bb=backbone_restraint)
+                    system.minimize_structure(
+                        structure_path=input_path,
+                        cuda=cuda,
+                        restraint_bb=backbone_restraint)
 
                     logger.info('Your protein was successfully minimized and can be used for design now.')
                 else:
@@ -728,7 +723,7 @@ class DesignPipeline:
         Computes defined number of solutions that minimise the total energy and creates output files.
         In three step process, the lowest energy solutions are computed using the MPLP algorithm by Sontag et. al.
         First the energy .csv files are read and internally indexed. Then the required input files for the MPLP
-        algorithm is written.
+        algorithm are written.
         The input files are then processed and the wanted number of solutions computed. The last step contains
         the creation of pdb files of the computed solutions, output .txt .html files and a final Pymol session
         containing all structures.
@@ -1087,7 +1082,7 @@ def main():
                                      accurate=args.accurate[0],
                                      include_native=bool(args.include_native[0]))
     design.sample_lig_poses(method='grid',
-                            grid={'trans': [args.trans[0], args.trans_steps[0]], 'rot': [args.rot[0], args.rot_steps[0]]} ,
+                            grid={'trans': [args.trans[0], args.trans_steps[0]], 'rot': [args.rot[0], args.rot_steps[0]]},
                             vdw_filter_thresh=args.vdw_thresh[0],
                             max_poses=args.max_poses[0])
     design.calculate_energies(scoring=args.scoring[0])

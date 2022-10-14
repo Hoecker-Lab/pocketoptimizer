@@ -5,7 +5,7 @@ import tempfile as tf
 from tqdm.auto import tqdm
 import multiprocessing as mp
 from functools import partial
-from typing import List, Dict, NoReturn
+from typing import List, Tuple, Dict, NoReturn
 import logging
 from moleculekit.molecule import Molecule
 from ffevaluation.ffevaluate import FFEvaluate

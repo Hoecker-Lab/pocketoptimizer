@@ -42,12 +42,16 @@ _SIDECHAIN_TORSIONS_AMBER = {
         [["N", "CA", "CB", "CG"], ["CA", "CB", "CG", "CD"], ["CB", "CG", "CD", "N"]],
     'SER':
         [["N", "CA", "CB", "OG"]],
+    'SEP':
+        [["N", "CA", "CB", "OG"], ["CA", "CB", "OG", "P"]],
     'THR':
         [["N", "CA", "CB", "OG1"]],
     'TRP':
         [["N", "CA", "CB", "CG"], ["CA", "CB", "CG", "CD1"]],
     'TYR':
         [["N", "CA", "CB", "CG"], ["CA", "CB", "CG", "CD1"]],
+    'PTR':
+        [["N", "CA", "CB", "CG"], ["CA", "CB", "CG", "CD1"], ["CE1", "CZ", "OH", "P"]],
     'VAL':
         [["N", "CA", "CB", "CG1"]]}
 

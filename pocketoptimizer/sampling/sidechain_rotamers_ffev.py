@@ -107,15 +107,14 @@ class FFRotamerSampler(Storer):
         return rotamers
 
     @staticmethod
-    def expand_dunbrack(rotamers: List[Dict[str, float or List[int or float]]], expand: List[str] = ['chi1', 'chi2'], accurate: bool = False) -> List[Tuple[float]]:
+    def expand_dunbrack(rotamers: Dict[str, List[Tuple[float]]], expand: List[str] = ['chi1', 'chi2'], accurate: bool = False) -> Dict[str, List[Tuple[float]]]:
         """
         Expands defined chi-angles by +/- 2 Std
 
         Parameters
         ----------
-        rotamers: list
-            List of dictionaries for rotamers containing probability, rotameric mode, chi angles and standard deviations
-            for rotamers belonging to a respective phi/psi angle combination
+        rotamers: dict
+            Dictionaries for rotamers containing chi angles and standard deviations
         expand: list
             List of which chi angles to expand, [default: ['chi1', 'chi2']]
         accurate: bool
@@ -123,7 +122,7 @@ class FFRotamerSampler(Storer):
 
         Returns
         -------
-        List of Chi-angle tuples
+        Dictionary with lists of Chi-angle tuples
         """
 
         # List of lists for each rotamer containing a tuple for
@@ -145,7 +144,7 @@ class FFRotamerSampler(Storer):
                 else:
                     rotamer_chi_angles[i].append([chi_angle])
 
-        rotamers = {'chi': []}
+        rotamers_expand = {'chi': []}
 
         for possible_rotamer in rotamer_chi_angles:
             for chi_1 in possible_rotamer[0]:
@@ -153,9 +152,9 @@ class FFRotamerSampler(Storer):
                     for chi_3 in possible_rotamer[2]:
                         for chi_4 in possible_rotamer[3]:
                             rotamer = (chi_1, chi_2, chi_3, chi_4)
-                            if not rotamer in rotamers['chi']:
-                                rotamers['chi'].append(rotamer)
-        return rotamers
+                            if not rotamer in rotamers_expand['chi']:
+                                rotamers_expand['chi'].append(rotamer)
+        return rotamers_expand
 
     def calculate_energy(self, rot_id: int, structure: Molecule, ffev: FFEvaluate,
                       res_coords: np.ndarray, resname: str, resid: str, chain: str) -> np.float:

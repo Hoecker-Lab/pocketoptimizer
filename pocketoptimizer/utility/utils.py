@@ -75,7 +75,7 @@ class Storer:
 
 class MutationProcessor:
 
-    def __init__(self, structure: Molecule, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str):
+    def __init__(self, structure: Molecule, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str, non_standard_aa: bool = False):
         """
         Constructor Method.
 
@@ -93,6 +93,8 @@ class MutationProcessor:
             Structure to be checked for the mutations
         forcefield: str
             Forcefield used
+        non_standard_aa: bool
+            Whether non-standard amino acid mutations are in the sequence [default: False]
         """
         self.mutations = mutations
         self.structure = Molecule(structure)
@@ -113,6 +115,9 @@ class MutationProcessor:
         elif self.forcefield == 'charmm36':
             self.aa.update({'HIS': ['HSD', 'HSE', 'HSP']})
         self.aa['ALL'].extend(self.aa['HIS'])
+        if non_standard_aa:
+            self.aa.update({'NON-STANDARD': ['SEP', 'PTR']})
+            self.aa['ALL'].extend(self.aa['NON-STANDARD'])
 
     def check_positions(self, check_termini: bool = True) -> NoReturn:
         """
@@ -168,7 +173,7 @@ class MutationProcessor:
 
             # Replace keywords and check if aa is defined
             for mutation in mutations:
-                if mutation in self.aa['ALL'] or mutation in self.aa['HIS']:
+                if mutation in self.aa['ALL']:
                     corrected_mutations.append(mutation)
                 elif mutation in self.aa.keys():
                     if mutation == 'HIS':
