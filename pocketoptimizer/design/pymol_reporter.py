@@ -99,8 +99,8 @@ class PymolReporter:
             'color bluewhite, ligand and elem C',
             'color splitpea, WT_scaffold and elem C',
             'color gray80, WT_scaffold and not old_pocket and elem C',
-            'select don, (elem N or elem O and (neighbor hydro))',
-            'select acc, (elem O or (elem N and not (neighbor hydro)))']
+            'select don, (elem N or elem O and neighbor hydro)',
+            'select acc, (elem O or elem N and not neighbor hydro)']
         if waters:
             s_create = 'create wt_waters, '
             s_delete = 'delete '
@@ -268,8 +268,8 @@ class PymolReporter:
             'color bluewhite, new_pocket and elem C',
             'set_bond stick_radius, 0.25, mutable',
             'set label_size, 20']
-        commands += ['select don, (elem N or elem O and (neighbor hydro))',
-                     'select acc, (elem O or (elem N and not (neighbor hydro)))',
+        commands += ['select don, (elem N or elem O and neighbor hydro)',
+                     'select acc, (elem O or elem N and not neighbor hydro)',
                      'color bluewhite, ligand_poses and elem C',
                      'color gray80, WT_ligand and elem C'
                      ]
