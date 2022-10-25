@@ -40,6 +40,12 @@ class PeptideSampler(FFRotamerSampler):
         super().__init__(**kwargs)
         self.library = library
         self.positions = positions
+        # Chi-angles for phosphorylated amino acids from PDB taken from Rosetta patches
+        self.ptms = {'SEP': {'chi': [-179.16, 152.48, 117.55, -106.2, 153.19],
+                             'std': [10.17, 4.57, 15.89, 15.99, 7.19]},
+                     'PTR': {'chi': [-83.79, -176.68, -0.47, -131.33, 61.23, 100.14],
+                             'std': [17.19, 12.24, 20.06, 9.85, 12.12, 13.39]}
+                     }
 
     def merge_conformers(self, conf_ids: List[int], outfile: str) -> NoReturn:
             """
@@ -86,6 +92,40 @@ class PeptideSampler(FFRotamerSampler):
         structure.write(os.path.join(self.tmp_dir, f'ligand_conf_{conf_id}.pdb'))
 
         return energies['vdw']
+
+    def expand_ptms(self, resname: str, rotamers: Dict[str, List[Tuple[float]]]) -> Dict[str, List[Tuple[float]]]:
+        """
+        Samples additional rotations for phosphate groups
+
+        Parameters
+        ----------
+        resname: str
+            Resname of the Residue to expand
+        rotamers: dict
+            Dictionaries for rotamers containing chi angles and standard deviations
+
+        Returns
+        -------
+        Dictionary with lists of Chi-angle tuples
+        """
+        # Get the chi_angle to expand
+        for rotamer in rotamers['std']:
+            for num_chi, std in enumerate(rotamer):
+                if std == 0.0:
+                    break
+            break
+
+        rotamers_expand = {'chi': [], 'std': []}
+
+        for i, rotamer in enumerate(rotamers['chi']):
+            for j, chi in enumerate(self.ptms[resname]['chi']):
+                _chis = list(rotamer)
+                _stds = list(rotamers['std'][i])
+                _chis[num_chi] = chi
+                _stds[num_chi] = self.ptms[resname]['std'][j]
+                rotamers_expand['chi'].append(tuple(_chis))
+                rotamers_expand['std'].append(tuple(_stds))
+        return rotamers_expand
 
     def conformer_sampling(self, nrg_thresh: float = 100.0, dunbrack_prob: float = -1,
                            expand: List[str] = [], accurate: bool = False, _keep_tmp: bool = False) -> NoReturn:
@@ -168,6 +208,10 @@ class PeptideSampler(FFRotamerSampler):
                         # Read histidine rotamers for different HIS protonation states
                         if resname in ['HID', 'HIE', 'HIP', 'HSD', 'HSE', 'HSP']:
                             _resname = 'HIS'
+                        elif resname == 'SEP':
+                            _resname = 'SER'
+                        elif resname == 'PTR':
+                            _resname = 'TYR'
                         else:
                             _resname = resname
 
@@ -175,6 +219,10 @@ class PeptideSampler(FFRotamerSampler):
                                                 phi_angle=phi_angle,
                                                 psi_angle=psi_angle,
                                                 prob_cutoff=dunbrack_prob)
+
+                        if resname in ['SEP', 'PTR']:
+                            rotamers = self.expand_ptms(resname=resname,
+                                                        rotamers=rotamers)
 
                         rotamers = self.expand_dunbrack(rotamers=rotamers,
                                                         expand=expand,

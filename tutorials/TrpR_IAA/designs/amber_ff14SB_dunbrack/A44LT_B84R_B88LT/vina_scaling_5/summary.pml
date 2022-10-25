@@ -41,8 +41,8 @@ color gray80, WT_scaffold and elem C
 color bluewhite, new_pocket and elem C
 set_bond stick_radius, 0.25, mutable
 set label_size, 20
-select don, (elem N or elem O and (neighbor hydro))
-select acc, (elem O or (elem N and not (neighbor hydro)))
+select don, (elem N or elem O and neighbor hydro)
+select acc, (elem O or elem N and not neighbor hydro)
 color bluewhite, ligand_poses and elem C
 color gray80, WT_ligand and elem C
 dist HBA, (ligand_poses and acc), (designs and don), 3.2

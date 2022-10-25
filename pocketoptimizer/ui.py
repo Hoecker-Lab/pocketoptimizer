@@ -1,8 +1,10 @@
 import copy
+import shutil
+
 from tqdm.auto import tqdm
 import os
 import glob
-from shutil import which, rmtree
+from shutil import which
 from typing import List, Dict, Union, NoReturn
 import logging.config
 
@@ -53,102 +55,62 @@ class DesignPipeline:
             Number of CPUs to use [default: 1]
         """
         import sys
+        import tempfile
         import multiprocessing as mp
         from pocketoptimizer.path import path
 
         self.work_dir = work_dir
         os.chdir(self.work_dir)
+        if not self.work_dir in sys.path:
+            sys.path.insert(0, self.work_dir)
+
+        self.logfile = os.path.join(self.work_dir, 'pocketoptimizer.log')
         # Set environment variable to standard path
-        os.environ["POCKETOPTIMIZER_LOGFILE"] = os.path.join(self.work_dir, 'pocketoptimizer.log')
-
-        logging.config.fileConfig(
-            os.path.join(path(), "logging.ini"), disable_existing_loggers=False
-        )
-
+        os.environ["POCKETOPTIMIZER_LOGFILE"] = self.logfile
         # Set environment variables for MATCH
         os.environ["MATCH"] = os.path.abspath(os.path.join(path(), '..', 'MATCH_RELEASE', 'MATCH'))
         os.environ["PerlChemistry"] = os.path.abspath(os.path.join(path(), '..', 'MATCH_RELEASE', 'PerlChemistry'))
 
-        def create_settings_py(work_dir: str) -> NoReturn:
-            """
-            Creates a settings.py file in the working directory which contains paths to all binary files,
-            the paths are accessible as attributes of the Settings class.
+        logging.config.fileConfig(
+            os.path.join(path(), "logging.ini"), disable_existing_loggers=False
+        )
+        logger.info(f'Logging to: {self.logfile}')
 
-            Parameters
-            ----------
+        if not os.path.isdir(self.work_dir):
+            logger.error(f'{self.work_dir} does not exist.')
+            raise FileNotFoundError(f'{self.work_dir} does not exist.')
 
-            work_dir: Path to working directory
-            """
-            import tempfile
+        self.tmp_dir = tempfile.gettempdir()
 
-            if not os.path.isdir(work_dir):
-                logger.error('Working directory does not exist.')
-                raise FileNotFoundError('Working directory does not exist.')
+        self.match = os.path.abspath(os.path.join(path(), '..', 'MATCH_RELEASE', 'MATCH', 'scripts', 'MATCH.pl'))
+        self.solver = path(bin_file='sontag_solver')
+        self.psfgen = path(bin_file='psfgen')
 
-            tmp_dir = tempfile.gettempdir()
-            pocketoptimizer_logfile = os.path.join(work_dir, 'pocketoptimizer.log')
+        obabel_path = which('obabel')
+        if not obabel_path:
+            logger.warning("Obabel not found make sure it is installed and in your path.")
+        self.obabel = obabel_path
 
-            match_path = os.path.abspath(os.path.join(path(), '..', 'MATCH_RELEASE', 'MATCH', 'scripts', 'MATCH.pl'))
-            solver_path = path(bin_file='sontag_solver')
-            psfgen_path = path(bin_file='psfgen')
-
-            obabel_path = which('obabel')
-            if not obabel_path:
-                obabel_path = '#'
-                logger.warning("Obabel not found make sure it is installed and in your path.")
-            antechamber_path = which('antechamber')
-            if not antechamber_path:
-                antechamber_path = '#'
-                logger.warning("Antechamber not found make sure ambertools/ambermini is installed and in your path.")
-            tleap_path = which('tleap')
-            if not tleap_path:
-                tleap_path = '#'
-                logger.warning("Tleap not found make sure ambertools/ambermini is installed and in your path.")
-            parmchk2_path = which('parmchk2')
-            if not parmchk2_path:
-                parmchk2_path = '#'
-                logger.warning("Parmchk2 not found make sure it is installed and in your path.")
-            smina_path = which('smina')
-            if not smina_path:
-                smina_path = '#'
-                logger.warning("Smina not found make sure it is installed and in your path.")
-
-            if os.path.isfile(os.path.join(work_dir, 'settings', 'settings.py')):
-                logger.warning('Settings.py already exists, procede with caution.')
-
-            else:
-                settings_folder = os.path.join(work_dir, 'settings')
-                os.makedirs(settings_folder, exist_ok=True)
-                os.mknod(os.path.join(settings_folder, '__init__.py'))
-                with open(os.path.join(settings_folder, 'settings.py'), 'w') as settings_file:
-                    settings_file.write(f"OBABEL_BIN = '{obabel_path}'\n")
-                    settings_file.write(f"MATCH_PERL = '{match_path}'\n")
-                    settings_file.write(f"ANTECHAMBER_BIN = '{antechamber_path}'\n")
-                    settings_file.write(f"PARMCHK2_BIN = '{parmchk2_path}'\n")
-                    settings_file.write(f"TLEAP_BIN = '{tleap_path}'\n")
-                    settings_file.write(f"PSFGEN_BIN = '{psfgen_path}'\n")
-                    settings_file.write(f"SMINA_BIN = '{smina_path}'\n")
-                    settings_file.write(f"SOLVER_BIN = '{solver_path}'\n")
-                    settings_file.write(f"POCKETOPTIMIZER_LOGFILE = '{pocketoptimizer_logfile}'\n")
-                    settings_file.write(f"TMP_DIR = '{tmp_dir}'\n")
-                    settings_file.write('\nclass Settings:'
-                                        '\n\n    def __init__(self):'
-                                        '\n        self.OBABEL_BIN = OBABEL_BIN'
-                                        '\n        self.MATCH_PERL = MATCH_PERL'
-                                        '\n        self.ANTECHAMBER_BIN = ANTECHAMBER_BIN'
-                                        '\n        self.PARMCHK2_BIN = PARMCHK2_BIN'
-                                        '\n        self.TLEAP_BIN = TLEAP_BIN'
-                                        '\n        self.PSFGEN_BIN = PSFGEN_BIN'
-                                        '\n        self.SMINA_BIN = SMINA_BIN'
-                                        '\n        self.SOLVER_BIN = SOLVER_BIN'
-                                        '\n        self.POCKETOPTIMIZER_LOGFILE = POCKETOPTIMIZER_LOGFILE'
-                                        '\n        self.TMP_DIR = TMP_DIR')
-
-        create_settings_py(self.work_dir)
-        if not self.work_dir in sys.path:
-            sys.path.insert(0, self.work_dir)
-        self._update_settings()
-        logger.info(f'Logging to: {self.settings.POCKETOPTIMIZER_LOGFILE}')
+        antechamber_path = which('antechamber')
+        if not antechamber_path:
+            antechamber_path = '#'
+            logger.warning("Antechamber not found make sure ambertools/ambermini is installed and in your path.")
+        self.antechamber = antechamber_path
+        tleap_path = which('tleap')
+        if not tleap_path:
+            tleap_path = '#'
+            logger.warning("Tleap not found make sure ambertools/ambermini is installed and in your path.")
+        self.tleap = tleap_path
+        parmchk2_path = which('parmchk2')
+        if not parmchk2_path:
+            parmchk2_path = '#'
+            logger.warning("Parmchk2 not found make sure it is installed and in your path.")
+        self.parmchk2 = parmchk2_path
+        smina_path = which('smina')
+        if not smina_path:
+            smina_path = '#'
+            logger.warning("Smina not found make sure it is installed and in your path.")
+        self.smina = smina_path
 
         self.built_scaffold = ''
         self.prepared_protein = ''
@@ -178,31 +140,6 @@ class DesignPipeline:
         if self.ncpus > mp.cpu_count():
             logger.warning(f'More CPUs defined than available, setting maximum of {mp.cpu_count()} CPUs.')
             self.ncpus = mp.cpu_count()
-
-    def _update_settings(self):
-        """
-        Reimports settings file to update binary paths, sets environment variable to logfile path and updates logger.
-
-        Returns:
-        --------
-
-        Updated :class: settings.Settings object containing the paths currently set in settings.py
-        """
-
-        if '#' in open(os.path.join(self.work_dir, 'settings', 'settings.py'), 'r').read():
-            logger.warning('Missing binary paths in settings file, adjust manually.')
-
-        from importlib import reload
-        import settings.settings as settings
-        settings = reload(settings)
-        self.settings = settings.Settings()
-
-        # Set environment variable to path defined in settingsfile
-        os.environ["POCKETOPTIMIZER_LOGFILE"] = self.settings.POCKETOPTIMIZER_LOGFILE
-
-        if not os.path.isdir(self.settings.TMP_DIR):
-            logger.info(f'Creating temporary directory: {self.settings.TMP_DIR}')
-            os.makedirs(self.settings.TMP_DIR, exist_ok=True)
 
     def _set_ff(self, forcefield: str) -> NoReturn:
         """
@@ -311,8 +248,6 @@ class DesignPipeline:
         """
         from pocketoptimizer.preparation.structure_building import SystemBuilder
 
-        self._update_settings()
-
         if not os.path.isfile(self.ligand_protonated):
 
             system = SystemBuilder(design_pipeline=self,
@@ -359,8 +294,6 @@ class DesignPipeline:
                 If the minimization should be performed on a GPU. [default: False]
             """
             from pocketoptimizer.preparation.structure_building import SystemBuilder
-
-            self._update_settings()
 
             logger.info('Start Protein Preparation.')
 
@@ -455,12 +388,11 @@ class DesignPipeline:
         """
         from pocketoptimizer.sampling import conformer_generator_obabel
 
-        self._update_settings()
         os.makedirs(os.path.join(self.work_dir, 'ligand', self.forcefield, 'conformers'), exist_ok=True)
 
         if method == 'genetic' or method == 'confab':
             conformer_generator_obabel.conformer_generator(
-                obabel_path=self.settings.OBABEL_BIN, infile=self.ligand_protonated, conf_file_name=self.ligand_conformers,
+                obabel_path=self.obabel, infile=self.ligand_protonated, conf_file_name=self.ligand_conformers,
                 method=method, nconfs=nconfs, score=score, rcutoff=rcutoff, ecutoff=ecutoff)
         else:
             logger.error('Conformer generation method not defined! Try genetic or confab.')
@@ -473,8 +405,7 @@ class DesignPipeline:
         positions: list
             List of residue IDs to sample rotamers for
         library: str
-            Library to use for selecting rotamers, either setting coordinates from pdb after superimposing (cmlib)
-            or setting dihedral angles from dunbrack [default: 'dunbrack']
+            Library to use for selecting rotamers [default: 'dunbrack']
         nrg_thresh: float
             Threshold value used to filter peptide conformations [default: 100.0 kcal/mol]
         expand: list
@@ -485,8 +416,6 @@ class DesignPipeline:
             Whether to expand chi-angles by +/-2 std or also +/-1 std
         """
         from pocketoptimizer.sampling.peptide_sampler import PeptideSampler
-
-        self._update_settings()
 
         if nrg_thresh < 0:
             logger.warning('Energy threshold can not be negative.')
@@ -524,8 +453,6 @@ class DesignPipeline:
         """
         from pocketoptimizer.preparation.structure_building import SystemBuilder
         from pocketoptimizer.preparation.aacodes import aa
-
-        self._update_settings()
 
         if not self.mutations:
             logger.error('No mutations have been defined. Please define at least one mutation.')
@@ -569,8 +496,6 @@ class DesignPipeline:
         """
 
         from pocketoptimizer.sampling.sidechain_rotamers_ffev import FFRotamerSampler
-
-        self._update_settings()
 
         if not self.mutations:
             logger.error('No mutations have been defined. Please define at least one mutation.')
@@ -665,8 +590,6 @@ class DesignPipeline:
         from pocketoptimizer.scoring.sidechain_pair_energies import SidechainPairScorer
 
         os.chdir(self.work_dir)
-
-        self._update_settings()
 
         if not self.mutations:
             logger.error('No mutations have been defined. Please define at least one mutation.')
@@ -795,9 +718,9 @@ class DesignPipeline:
         sw.write_sontag(solver_path)
 
         os.makedirs(os.path.join(solver_path, 'solutions'), exist_ok=True)
-        sontag_solver.calculate_design_solutions(solver_bin=self.settings.SOLVER_BIN,
+        sontag_solver.calculate_design_solutions(solver_bin=self.solver,
                                                  design_pipeline=self,
-                                                 temp_dir=self.settings.TMP_DIR,
+                                                 temp_dir=self.tmp_dir,
                                                  out_path=solver_path,
                                                  num_solutions=num_solutions,
                                                  penalty_energy=1e10,
@@ -815,6 +738,8 @@ class DesignPipeline:
         logger.info(f'Read {solution.get_solution_number()} solution(s) from solver output.')
         solution.read_detailed_self_energies()
         solution.read_detailed_pair_energies()
+        # Remove solver directory
+        shutil.rmtree(os.path.join(self.work_dir, 'solver'))
 
         design_outdir = os.path.join(self.work_dir, 'designs', design_full_name)
         os.makedirs(design_outdir, exist_ok=True)
@@ -866,7 +791,7 @@ class DesignPipeline:
     def clean(self, scaffold: bool = False, ligand: bool = False) -> None or NoReturn:
         """
         Remove all prepared scaffold and ligand files to start an entirely new design run.
-        Delete settings.py, pocketoptimizer.log files and reset mutations, new DesignPipeline object needs to be initialized.
+        Delete logfile and reset mutations, new DesignPipeline object needs to be initialized.
 
         Parameters
         ----------
@@ -945,13 +870,8 @@ class DesignPipeline:
         if ligand:
             delete_prepared_ligand_files(project_dir=self.work_dir, ff=self.forcefield)
             logger.info('All ligand files are deleted.')
-        if os.path.isfile(os.path.join(self.work_dir, 'settings', 'settings.py')):
-            os.remove(os.path.join(self.work_dir, 'settings', 'settings.py'))
-            os.remove(os.path.join(self.work_dir, 'settings', '__init__.py'))
-            rmtree(os.path.join(self.work_dir, 'settings'))
-            logger.info('Deleted settings file.')
-        if os.path.isfile(os.path.join(self.work_dir, os.environ.get('POCKETOPTIMIZER_LOGFILE'))):
-            os.remove(os.path.join(self.work_dir, os.environ.get('POCKETOPTIMIZER_LOGFILE')))
+        if os.path.isfile(self.logfile):
+            os.remove(self.logfile)
             del os.environ['POCKETOPTIMIZER_LOGFILE']
             logger.info('Deleted log file.')
         # Reset self.mutations, since new design run will be initialized

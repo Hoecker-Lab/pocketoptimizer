@@ -88,7 +88,6 @@ The general layout looks like this:
 
     project
     ├── designs
-    ├── solver
     ├── energies
     ├── ligand
     └── scaffold
@@ -506,7 +505,6 @@ All energies are contained in .csv files under:
 
     project
     ├── designs
-    ├── solver
     ├── energies
     │   └── FORCEFIELD_LIBRARY
     │       ├── sidechain_scaffold_FORCE_FIELD
@@ -563,7 +561,6 @@ which first prepares input files for the optimizer and then creates output
     │               ├── summary.pml
     │               ├── summary.png
     │               └── seqlogo.png
-    ├── solver
     ├── energies
     ├── ligand
     └── scaffold
@@ -602,9 +599,8 @@ energies.
 **********************************
 
 PocketOptimizer creates many files in the directory that is specified as the working directory.
-These can be files containing parameters for the protein or the ligand molecule, files containing the calculated energies,
-or files prepared for the solver algorithm. In order to delete them,
-PocketOptimizer includes a clean-up procedure, which scans your working directory after these files.
+These can be files containing parameters for the protein or the ligand molecule or files containing the calculated energies.
+In order to delete them, PocketOptimizer includes a clean-up procedure, which scans your working directory after these files.
 
 .. code-block:: python
 

@@ -63,14 +63,14 @@ class Storer:
                                      f'ligand_sidechain_{self.scorer}')
 
         self.ncpus = design_pipeline.ncpus
-        self.obabel = design_pipeline.settings.OBABEL_BIN
-        self.match = design_pipeline.settings.MATCH_PERL
-        self.antechamber = design_pipeline.settings.ANTECHAMBER_BIN
-        self.parmchk2 = design_pipeline.settings.PARMCHK2_BIN
-        self.tleap = design_pipeline.settings.TLEAP_BIN
-        self.psfgen = design_pipeline.settings.PSFGEN_BIN
-        self.smina = design_pipeline.settings.SMINA_BIN
-        self.tmp_dir = design_pipeline.settings.TMP_DIR
+        self.obabel = design_pipeline.obabel
+        self.match = design_pipeline.match
+        self.antechamber = design_pipeline.antechamber
+        self.parmchk2 = design_pipeline.parmchk2
+        self.tleap = design_pipeline.tleap
+        self.psfgen = design_pipeline.psfgen
+        self.smina = design_pipeline.smina
+        self.tmp_dir = design_pipeline.tmp_dir
 
 
 class MutationProcessor:

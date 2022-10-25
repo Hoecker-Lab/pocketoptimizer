@@ -22,8 +22,8 @@ spectrum b, red_blue, new_pocket
 color bluewhite, ligand and elem C
 color splitpea, WT_scaffold and elem C
 color gray80, WT_scaffold and not old_pocket and elem C
-select don, (elem N or elem O and (neighbor hydro))
-select acc, (elem O or (elem N and not (neighbor hydro)))
+select don, (elem N or elem O and neighbor hydro)
+select acc, (elem O or elem N and not neighbor hydro)
 dist HBA, (ligand and acc), (design and don), 3.2
 dist HBD, (ligand and don), (design and acc), 3.2
 delete don
