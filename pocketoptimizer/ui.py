@@ -866,18 +866,14 @@ class DesignPipeline:
                     shutil.rmtree(path)
         if scaffold:
             delete_prepared_scaffold_files(project_dir=self.work_dir, ff=self.forcefield)
-            logger.info('All scaffold files are deleted.')
+            logger.info('All scaffold files were deleted.')
         if ligand:
             delete_prepared_ligand_files(project_dir=self.work_dir, ff=self.forcefield)
-            logger.info('All ligand files are deleted.')
+            logger.info('All ligand files were deleted.')
         if os.path.isfile(self.logfile):
             os.remove(self.logfile)
             del os.environ['POCKETOPTIMIZER_LOGFILE']
-            logger.info('Deleted log file.')
-        # Reset self.mutations, since new design run will be initialized
-        self.mutations = []
-        logger.info('All files were deleted.')
-        logger.info('Initialize a new DesignPipeline.')
+            logger.info('Logfile was deleted.')
 
 
 def main():
@@ -891,38 +887,38 @@ def main():
 
     import pocketoptimizer
     parser = argparse.ArgumentParser(description='PocketOptimizer computational protein design pipeline CLI, for more options use API.')
-    parser.add_argument('-ff', '--forcefield', type=str, nargs=1, help='Force field to be used either: amber_ff14SB or charmm36', default=['amber_ff14SB'], required=False)
-    parser.add_argument('--elec', type=float, nargs=1, default=[0.01], help='Scaling factor for electrostatic components', required=False)
-    parser.add_argument('--intra', type=int, nargs=1, default=[0], help='Whether to calculate internal energies', required=False)
-    parser.add_argument('-r', '--receptor', type=str, nargs=1, help='Protein input structure file in pdb format', required=True)
-    parser.add_argument('-l', '--ligand', type=str, nargs=1, help='Ligand input structure file', required=True)
-    parser.add_argument('--peptide', type=int, nargs=1, default=[0], help='Whether ligand is peptide', required=False)
-    parser.add_argument('--ph', type=float, nargs=1, default=[7.0], help='ph value for side chain and ligand protonation', required=False)
+    parser.add_argument('-ff', '--forcefield', type=str, help='Force field to be used either: amber_ff14SB or charmm36', default='amber_ff14SB', required=False)
+    parser.add_argument('--elec', type=float, default=1, help='Scaling factor for electrostatic components', required=False)
+    parser.add_argument('--intra', action='store_true', help='Whether to calculate internal energies')
+    parser.add_argument('-r', '--receptor', type=str, help='Protein input structure file in pdb format', required=True)
+    parser.add_argument('-l', '--ligand', type=str, help='Ligand input structure file', required=True)
+    parser.add_argument('--peptide', action='store_true', help='Whether ligand is peptide')
+    parser.add_argument('--ph', type=float, default=7.0, help='ph value for side chain and ligand protonation', required=False)
     parser.add_argument('--keep_chains', type=str, nargs='*', help='Chains to keep by their chain identifiers', required=False)
-    parser.add_argument('--min', type=int, nargs=1, default=[1], help='Whether to minimize the protein structure, default: Minimization', required=False)
-    parser.add_argument('--min_bb', type=int, nargs=1, default=[0], help='Whether to minimize the proteins backbone, default: No minimization', required=False)
+    parser.add_argument('--no_min', action='store_true', help='Whether to minimize the protein structure')
+    parser.add_argument('--min_bb', action='store_true', help='Whether to minimize the proteins backbone')
     parser.add_argument('--discard_mols', type=str, nargs='*', help='Special molecules to exclude by their chain and residue identifier (A:1), '
                                                                            'per default everything, but peptides have to be defined manually', required=False)
     parser.add_argument('--mutations', type=str, nargs='+', help='Mutations (A:1:ALA)', required=True)
     parser.add_argument('--peptide_mutations', type=str, nargs='*', default=None, help='Peptide mutations (A:1:ALA)', required=False)
     parser.add_argument('--flex_peptide_res', type=str, nargs='*', default=None, help='Peptide residues to sample flexiblity', required=False)
-    parser.add_argument('--vdw_thresh', type=float, nargs=1, default=[100.0], help='Energy threshold for rotamer and ligand pose sampling (kcal/mol)', required=False)
-    parser.add_argument('--library', type=str, nargs=1, default=['dunbrack'], help='Rotamer library, options are: dunbrack or cmlib', required=False)
-    parser.add_argument('--dunbrack_filter_thresh', type=float, nargs=1, default=[0.01], help='Filter threshold for the dunbrack rotamer library (value between 0 and 1)', required=False)
-    parser.add_argument('--accurate', type=int, nargs=1, default=[0], help='Sampling more rotamers', required=False)
-    parser.add_argument('--include_native', type=int, nargs=1, default=[1], help='Include native rotamers', required=False)
-    parser.add_argument('--nconfs', type=int, nargs=1, default=[50], help='Number of ligand conformers to sample', required=False)
-    parser.add_argument('--rot', '--rot', type=float, nargs=1, default=[20], help='Maximum ligand rotation', required=False)
-    parser.add_argument('--rot_steps', '--rot_steps', type=float, nargs=1, default=[20], help='Ligand rotation steps', required=False)
-    parser.add_argument('--trans', '--trans', type=float, nargs=1, default=[1], help='Maximum ligand translation', required=False)
-    parser.add_argument('--trans_steps', '--trans_steps', type=float, nargs=1, default=[0.5], help='Ligand translation steps', required=False)
-    parser.add_argument('--max_poses', '--max_poses', type=int, nargs=1, default=[10000], help='Maximum number of ligand poses to sample', required=False)
-    parser.add_argument('--sampling_pocket', type=str, nargs=1, default=['ALA'], help='Sampling pocket for rotamer and ligand pose sampling', required=False)
-    parser.add_argument('--scoring', type=str, nargs=1, default=['vina'], help='Scoring function, options are: vina, vinardo, ad4_scoring, force_field', required=False)
-    parser.add_argument('--scaling', type=int, nargs=1, default=[1], help='Ligand scaling factor', required=False)
-    parser.add_argument('--num_solutions', type=int, nargs=1, default=[10], help='Number of design solutions to calculate', required=False)
-    parser.add_argument('--ncpus', type=int, nargs=1, default=[1], help='Number of CPUs for multiprocessing', required=False)
-    parser.add_argument('--cuda', type=int, nargs=1, default=[0], help='Enabling cuda for GPU based minimization, default: No cuda', required=False)
+    parser.add_argument('--vdw_thresh', type=float, default=100.0, help='Energy threshold for rotamer and ligand pose sampling (kcal/mol)', required=False)
+    parser.add_argument('--library', type=str, default='dunbrack', help='Rotamer library, options are: dunbrack or cmlib', required=False)
+    parser.add_argument('--dunbrack_filter_thresh', type=float, default=0.01, help='Filter threshold for dunbrack rotamer library (between 0 and 1), default: 0.01', required=False)
+    parser.add_argument('--accurate', action='store_true', help='Sample additional rotamers')
+    parser.add_argument('--include_native', action='store_true', help='Include native rotamer')
+    parser.add_argument('--nconfs', type=int, default=50, help='Number of ligand conformers to sample, default: 50', required=False)
+    parser.add_argument('--rot', '--rot', type=float, default=20, help='Maximum ligand rotation, default: 20°', required=False)
+    parser.add_argument('--rot_steps', '--rot_steps', type=float, default=20, help='Ligand rotation steps, default: 20°', required=False)
+    parser.add_argument('--trans', '--trans', type=float, default=1, help='Maximum ligand translation, default: 1 Å', required=False)
+    parser.add_argument('--trans_steps', '--trans_steps', type=float, default=0.5, help='Ligand translation steps, default 0.5 Å', required=False)
+    parser.add_argument('--max_poses', '--max_poses', type=int, default=10000, help='Maximum number of ligand poses to sample, default: 10000', required=False)
+    parser.add_argument('--sampling_pocket', type=str, default='ALA', help='Sampling pocket for rotamer and ligand pose sampling, default: ALA', required=False)
+    parser.add_argument('--scoring', type=str, default='vina', help='Scoring function, options are: vina, vinardo, ad4_scoring, force_field', required=False)
+    parser.add_argument('--scaling', type=int, default=1, help='Ligand scaling factor, default: 1', required=False)
+    parser.add_argument('--num_solutions', type=int, default=10, help='Number of design solutions to calculate, default 10', required=False)
+    parser.add_argument('--ncpus', type=int, default=1, help='Number of CPUs for multiprocessing', required=False)
+    parser.add_argument('--cuda', action='store_true', help='Enabling cuda for GPU based minimization')
 
     # Custom class for cleaning the working directory
     class CleanWorkDir(argparse.Action):
@@ -962,52 +958,53 @@ def main():
             except ValueError:
                 logger.error('Define mutations in the following format CHAIN:RESID:RESNAME')
                 raise argparse.ArgumentTypeError('Define mutations in the following format CHAIN:RESID:RESNAME')
+
     # Initialize new DesignPipeline in current working directory
     design = pocketoptimizer.DesignPipeline(work_dir=working_dir,
-                                            forcefield=args.forcefield[0],
-                                            intra=bool(args.intra[0]),
-                                            elec=args.elec[0],
-                                            ph=args.ph[0],
-                                            ncpus=args.ncpus[0],
-                                            peptide=bool(args.peptide[0]))
-    if bool(args.peptide[0]):
-        design.prepare_protein(protein_structure=args.receptor[0],
+                                            forcefield=args.forcefield,
+                                            intra=args.intra,
+                                            elec=args.elec,
+                                            ph=args.ph,
+                                            ncpus=args.ncpus,
+                                            peptide=args.peptide)
+    if args.peptide:
+        design.prepare_protein(protein_structure=args.receptor,
                                keep_chains=args.keep_chains,
-                               minimize=bool(args.min[0]),
-                               backbone_restraint=not bool(args.min_bb[0]),
+                               minimize=not args.no_min,
+                               backbone_restraint=not args.min_bb,
                                discard_mols=discard_mols,
-                               peptide_structure=args.ligand[0],
+                               peptide_structure=args.ligand,
                                peptide_mutations=peptide_mutations,
-                               cuda=bool(args.cuda[0]))
+                               cuda=args.cuda)
         design.prepare_peptide_conformers(positions=[resid for resid in args.flex_peptide_res],
-                                          library=args.library[0],
-                                          nrg_thresh=args.vdw_thresh[0],
-                                          dunbrack_filter_thresh=args.dunbrack_filter_thresh[0],
-                                          accurate=args.accurate[0])
+                                          library=args.library,
+                                          nrg_thresh=args.vdw_thresh,
+                                          dunbrack_filter_thresh=args.dunbrack_filter_thresh,
+                                          accurate=args.accurate)
     else:
-        design.parameterize_ligand(input_ligand=args.ligand[0])
-        design.prepare_lig_conformers(nconfs=args.nconfs[0])
-        design.prepare_protein(protein_structure=args.receptor[0],
+        design.parameterize_ligand(input_ligand=args.ligand)
+        design.prepare_lig_conformers(nconfs=args.nconfs)
+        design.prepare_protein(protein_structure=args.receptor,
                                keep_chains=args.keep_chains,
-                               minimize=bool(args.min[0]),
-                               backbone_restraint=not bool(args.min_bb[0]),
-                               cuda=bool(args.cuda[0]),
-                               discard_mols=discard_mols)
+                               minimize=not args.no_min,
+                               backbone_restraint=not args.min_bb,
+                               discard_mols=discard_mols,
+                               cuda=args.cuda)
 
     design.set_mutations(mutations)
-    design.prepare_mutants(sampling_pocket=args.sampling_pocket[0])
-    design.sample_sidechain_rotamers(library=args.library[0],
-                                     vdw_filter_thresh=args.vdw_thresh[0],
-                                     dunbrack_filter_thresh=args.dunbrack_filter_thresh[0],
-                                     accurate=args.accurate[0],
-                                     include_native=bool(args.include_native[0]))
+    design.prepare_mutants(sampling_pocket=args.sampling_pocket)
+    design.sample_sidechain_rotamers(library=args.library,
+                                     vdw_filter_thresh=args.vdw_thresh,
+                                     dunbrack_filter_thresh=args.dunbrack_filter_thresh,
+                                     accurate=args.accurate,
+                                     include_native=args.include_native)
     design.sample_lig_poses(method='grid',
-                            grid={'trans': [args.trans[0], args.trans_steps[0]], 'rot': [args.rot[0], args.rot_steps[0]]},
-                            vdw_filter_thresh=args.vdw_thresh[0],
-                            max_poses=args.max_poses[0])
-    design.calculate_energies(scoring=args.scoring[0])
-    design.design(num_solutions=args.num_solutions[0],
-                  ligand_scaling=args.scaling[0])
+                            grid={'trans': [args.trans, args.trans_steps], 'rot': [args.rot, args.rot_steps]},
+                            vdw_filter_thresh=args.vdw_thresh,
+                            max_poses=args.max_poses)
+    design.calculate_energies(scoring=args.scoring)
+    design.design(num_solutions=args.num_solutions,
+                  ligand_scaling=args.scaling)
 
 
 if __name__ == '__main__':
