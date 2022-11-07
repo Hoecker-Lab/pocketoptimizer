@@ -32,6 +32,14 @@ class FFRotamerSampler(Storer):
     """
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        if self.forcefield == 'amber_ff14SB':
+            from pocketoptimizer.utility.molecule_types import _SIDECHAIN_TORSIONS_AMBER as _SIDECHAIN_TORSIONS
+        elif self.forcefield == 'charmm36':
+            from pocketoptimizer.utility.molecule_types import _SIDECHAIN_TORSIONS_CHARMM as _SIDECHAIN_TORSIONS
+        else:
+            logger.error('Force field not implemented.')
+            raise NotImplementedError('Force field not implemented.')
+        self.sidechain_torsions = _SIDECHAIN_TORSIONS
 
     def read_db(self, resname: str, phi_angle: float = 0.0, psi_angle: float = 0.0, prob_cutoff: float = -1) -> Dict[str, List[Tuple[float]]]:
         """
@@ -247,13 +255,6 @@ class FFRotamerSampler(Storer):
         from pocketoptimizer.utility.utils import MutationProcessor, load_ff_parameters, write_energies, calculate_chunks
 
         logger.info('Start rotamer sampling procedure using FFEvaluate.')
-        if self.forcefield == 'amber_ff14SB':
-            from pocketoptimizer.utility.molecule_types import _SIDECHAIN_TORSIONS_AMBER as _SIDECHAIN_TORSIONS
-        elif self.forcefield == 'charmm36':
-            from pocketoptimizer.utility.molecule_types import _SIDECHAIN_TORSIONS_CHARMM as _SIDECHAIN_TORSIONS
-        else:
-            logger.error('Force field not implemented.')
-            raise NotImplementedError('Force field not implemented.')
 
         self.tmp_dir = tf.mkdtemp(dir=self.tmp_dir, prefix='calculateRotamers_')
         os.chdir(self.tmp_dir)
@@ -339,7 +340,7 @@ class FFRotamerSampler(Storer):
                     bonds = current_rot.bonds
                     # Iterate over all rotamers
                     for rotamer in rotamers['chi']:
-                        for i, torsion in enumerate(_SIDECHAIN_TORSIONS[resname]):
+                        for i, torsion in enumerate(self.sidechain_torsions[resname]):
                             # select the four atoms forming the dihedral angle according to their atom names
                             current_rot.setDihedral([int(current_rot.get('index', sel=f'name {torsion[0]}')),
                                                      int(current_rot.get('index', sel=f'name {torsion[1]}')),

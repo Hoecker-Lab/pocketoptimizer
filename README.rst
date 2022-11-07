@@ -180,9 +180,6 @@ These force fields contain parameters and energy functions to calculate the ener
 You can also specify a scaling factor for the ``electrostatic`` components and decide whether to score ``intramolecular energies`` or not.
 Besides you can define the ``number of CPUs`` used for all energy calculations.
 
-**Warning**: If you want to use intramolecular energies in combination with the CHARMM36 force field, you need to install the
-latest version of `FFEvaluate <https://github.com/Acellera/ffevaluation>`_ from the GitHub repository.
-
 2.1 Preparation/Minimization
 ****************************
 
@@ -620,13 +617,9 @@ By running the python script: ui.py, you can also access the command line interf
 
 .. code-block:: bash
 
-    PocketOptimizer computational protein design pipeline CLI, for more options
-    use API.
-
-    usage: ui.py [-h] [-ff FORCEFIELD] [--elec ELEC] [--intra INTRA] -r RECEPTOR -l LIGAND [--peptide PEPTIDE] [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--min MIN] [--min_bb MIN_BB] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...]
-                 [--peptide_mutations [PEPTIDE_MUTATIONS ...]] [--flex_peptide_res [FLEX_PEPTIDE_RES ...]] [--vdw_thresh VDW_THRESH] [--library LIBRARY] [--dunbrack_filter_thresh DUNBRACK_FILTER_THRESH] [--accurate ACCURATE] [--include_native INCLUDE_NATIVE]
-                 [--nconfs NCONFS] [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS] [--max_poses MAX_POSES] [--sampling_pocket SAMPLING_POCKET] [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS]
-                 [--cuda CUDA] [--clean CLEAN]
+    usage: ui.py [-h] [-ff FORCEFIELD] [--elec ELEC] [--intra] -r RECEPTOR -l LIGAND [--peptide] [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--no_min] [--min_bb] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...]
+                 [--peptide_mutations [PEPTIDE_MUTATIONS ...]] [--flex_peptide_res [FLEX_PEPTIDE_RES ...]] [--vdw_thresh VDW_THRESH] [--library LIBRARY] [--dunbrack_filter_thresh DUNBRACK_FILTER_THRESH] [--accurate] [--include_native] [--nconfs NCONFS] [--rot ROT]
+                 [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS] [--max_poses MAX_POSES] [--sampling_pocket SAMPLING_POCKET] [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--cuda] [--clean CLEAN]
 
     PocketOptimizer computational protein design pipeline CLI, for more options use API.
 
@@ -635,17 +628,17 @@ By running the python script: ui.py, you can also access the command line interf
       -ff FORCEFIELD, --forcefield FORCEFIELD
                             Force field to be used either: amber_ff14SB or charmm36
       --elec ELEC           Scaling factor for electrostatic components
-      --intra INTRA         Whether to calculate internal energies
+      --intra               Whether to calculate internal energies
       -r RECEPTOR, --receptor RECEPTOR
                             Protein input structure file in pdb format
       -l LIGAND, --ligand LIGAND
                             Ligand input structure file
-      --peptide PEPTIDE     Whether ligand is peptide
+      --peptide             Whether ligand is peptide
       --ph PH               ph value for side chain and ligand protonation
       --keep_chains [KEEP_CHAINS ...]
                             Chains to keep by their chain identifiers
-      --min MIN             Whether to minimize the protein structure, default: Minimization
-      --min_bb MIN_BB       Whether to minimize the proteins backbone, default: No minimization
+      --no_min              Whether to minimize the protein structure
+      --min_bb              Whether to minimize the proteins backbone
       --discard_mols [DISCARD_MOLS ...]
                             Special molecules to exclude by their chain and residue identifier (A:1), per default everything, but peptides have to be defined manually
       --mutations MUTATIONS [MUTATIONS ...]
@@ -658,29 +651,30 @@ By running the python script: ui.py, you can also access the command line interf
                             Energy threshold for rotamer and ligand pose sampling (kcal/mol)
       --library LIBRARY     Rotamer library, options are: dunbrack or cmlib
       --dunbrack_filter_thresh DUNBRACK_FILTER_THRESH
-                            Filter threshold for the dunbrack rotamer library (value between 0 and 1)
-      --accurate ACCURATE   Sampling more rotamers
-      --include_native INCLUDE_NATIVE
-                            Include native rotamers
-      --nconfs NCONFS       Number of ligand conformers to sample
-      --rot ROT, --rot ROT  Maximum ligand rotation
+                            Filter threshold for dunbrack rotamer library (between 0 and 1), default: 0.01
+      --accurate            Sample additional rotamers
+      --include_native      Include native rotamer
+      --nconfs NCONFS       Number of ligand conformers to sample, default: 50
+      --rot ROT, --rot ROT  Maximum ligand rotation, default: 20°
       --rot_steps ROT_STEPS, --rot_steps ROT_STEPS
-                            Ligand rotation steps
+                            Ligand rotation steps, default: 20°
       --trans TRANS, --trans TRANS
-                            Maximum ligand translation
+                            Maximum ligand translation, default: 1 Å
       --trans_steps TRANS_STEPS, --trans_steps TRANS_STEPS
-                            Ligand translation steps
+                            Ligand translation steps, default 0.5 Å
       --max_poses MAX_POSES, --max_poses MAX_POSES
-                            Maximum number of ligand poses to sample
+                            Maximum number of ligand poses to sample, default: 10000
       --sampling_pocket SAMPLING_POCKET
-                            Sampling pocket for rotamer and ligand pose sampling
+                            Sampling pocket for rotamer and ligand pose sampling, default: ALA
       --scoring SCORING     Scoring function, options are: vina, vinardo, ad4_scoring, force_field
-      --scaling SCALING     Ligand scaling factor
+      --scaling SCALING     Ligand scaling factor, default: 1
       --num_solutions NUM_SOLUTIONS
-                            Number of design solutions to calculate
+                            Number of design solutions to calculate, default 10
       --ncpus NCPUS         Number of CPUs for multiprocessing
-      --cuda CUDA           Enabling cuda for GPU based minimization, default: No cuda
+      --cuda                Enabling cuda for GPU based minimization
       --clean CLEAN         Clean the working directory
+
+
 
 LICENSE
 -------

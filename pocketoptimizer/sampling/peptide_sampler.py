@@ -41,11 +41,11 @@ class PeptideSampler(FFRotamerSampler):
         self.library = library
         self.positions = positions
         # Chi-angles for phosphorylated amino acids from PDB taken from Rosetta patches
-        self.ptms = {'SEP': {'chi': [-179.16, 152.48, 117.55, -106.2, 153.19],
-                             'std': [10.17, 4.57, 15.89, 15.99, 7.19]},
-                     'PTR': {'chi': [-83.79, -176.68, -0.47, -131.33, 61.23, 100.14],
-                             'std': [17.19, 12.24, 20.06, 9.85, 12.12, 13.39]}
-                     }
+        self.extra_chi_ptms = {'SEP': {'chi': [-179.16, 152.48, 117.55, -106.2, 153.19],
+                                       'std': [10.17, 4.57, 15.89, 15.99, 7.19]},
+                               'PTR': {'chi': [-83.79, -176.68, -0.47, -131.33, 61.23, 100.14],
+                                       'std': [17.19, 12.24, 20.06, 9.85, 12.12, 13.39]}
+                               }
 
     def merge_conformers(self, conf_ids: List[int], outfile: str) -> NoReturn:
             """
@@ -108,21 +108,15 @@ class PeptideSampler(FFRotamerSampler):
         -------
         Dictionary with lists of Chi-angle tuples
         """
-        # Get the chi_angle to expand
-        for rotamer in rotamers['std']:
-            for num_chi, std in enumerate(rotamer):
-                if std == 0.0:
-                    break
-            break
-
+        num_chi = len(self.sidechain_torsions[resname]) - 1
         rotamers_expand = {'chi': [], 'std': []}
 
         for i, rotamer in enumerate(rotamers['chi']):
-            for j, chi in enumerate(self.ptms[resname]['chi']):
+            for j, chi in enumerate(self.extra_chi_ptms[resname]['chi']):
                 _chis = list(rotamer)
                 _stds = list(rotamers['std'][i])
                 _chis[num_chi] = chi
-                _stds[num_chi] = self.ptms[resname]['std'][j]
+                _stds[num_chi] = self.extra_chi_ptms[resname]['std'][j]
                 rotamers_expand['chi'].append(tuple(_chis))
                 rotamers_expand['std'].append(tuple(_stds))
         return rotamers_expand
@@ -141,19 +135,11 @@ class PeptideSampler(FFRotamerSampler):
         expand: list
             List of chi angles to expand [default: ['chi1', 'chi2']]
         accurate: bool
-            Whether to expand chi-angles by +/-2 std or also +/-1 std
+            Whether to expand chi-angles by +/-2 std or also +/- 1 and 0.5 std [default: False]
         _keep_tmp: bool
             If the tmp directory should be deleted or not. Useful for debugging. [default: False]
         """
         from pocketoptimizer.utility.utils import MutationProcessor, load_ff_parameters, calculate_chunks
-
-        if self.forcefield == 'amber_ff14SB':
-            from pocketoptimizer.utility.molecule_types import _SIDECHAIN_TORSIONS_AMBER as _SIDECHAIN_TORSIONS
-        elif self.forcefield == 'charmm36':
-            from pocketoptimizer.utility.molecule_types import _SIDECHAIN_TORSIONS_CHARMM as _SIDECHAIN_TORSIONS
-        else:
-            logger.error('Force field not implemented.')
-            raise NotImplementedError('Force field not implemented.')
 
         outfile = os.path.join(self.work_dir, 'ligand', self.forcefield, 'conformers', 'ligand_confs.pdb')
 
@@ -240,7 +226,7 @@ class PeptideSampler(FFRotamerSampler):
                 bonds = current_rot.bonds
                 # Iterate over all rotamers
                 for rotamer in rotamers['chi']:
-                    for i, torsion in enumerate(_SIDECHAIN_TORSIONS[resname]):
+                    for i, torsion in enumerate(self.sidechain_torsions[resname]):
                         # select the four atoms forming the dihedral angle according to their atom names
                         current_rot.setDihedral([int(current_rot.get('index', sel=f'name {torsion[0]}')),
                                                  int(current_rot.get('index', sel=f'name {torsion[1]}')),
@@ -250,15 +236,17 @@ class PeptideSampler(FFRotamerSampler):
                     # append rotameric states as frames to residue
                     residue.appendFrames(current_rot)
 
-            # Remove the first rotamer
+            # Remove the original conformation
             residue.dropFrames(drop=0)
+            num_confs = confs.coords.shape[-1]
 
-            for conf_id in range(confs.coords.shape[-1]):
+            for conf_id in range(num_confs):
                 modified_conf = struc.copy()
                 modified_conf.set('coords', confs.coords[:, :, conf_id])
                 for rotamer_id in range(residue.coords.shape[-1]):
                     modified_conf.set('coords', residue.coords[:, :, rotamer_id], sel=f'chain {chain} and resid {resid}')
                     confs.appendFrames(modified_conf)
+            confs.dropFrames(drop=num_confs - 1)
 
         nconfs = confs.coords.shape[-1]
 

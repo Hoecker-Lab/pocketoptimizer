@@ -135,7 +135,7 @@ class SidechainSelfScorer(Storer):
                             pbar.update()
 
                 if self.intra:
-                    # Generate FFEvaluate object for scoring sidechain conformation itself
+                    # Generate FFEvaluate object for scoring sidechain conformation
                     struc.filter(f'chain {chain} and resid {resid}', _logger=False)
                     ffev = FFEvaluate(struc, prm)
 

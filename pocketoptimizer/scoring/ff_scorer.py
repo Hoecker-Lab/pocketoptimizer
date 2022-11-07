@@ -26,7 +26,7 @@ class LigandScorer(Storer):
         self.energy_terms = ['Vdw', 'Elec']
 
     def calculate_energy(self, ids: Tuple[int], struc: Molecule, ffev: FFEvaluate, pose_coords: np.ndarray,
-                        rot_coords: np.ndarray = None, resid: str = None, chain: str = None) -> np.ndarray:
+                        rot_coords: np.ndarray = None, chain: str = None, resid: str = None) -> np.ndarray:
         """Calculates the force field components and returns the energies
 
         Parameters
@@ -37,12 +37,14 @@ class LigandScorer(Storer):
             Object of Molecule to set the rotamer coordinates
         ffev: :class:ffevaluation.ffevaluate.FFevaluate
             Object to calculate the energies from between sets ligand and side chain/scaffold
-        rot_coords: list
-            Rotamer coordinates np.array(natoms, 3, nrots)
-        pose_coords: list
+        pose_coords: np.ndarray
               Ligand pose coordinates np.array(natoms, 3, nposes)
+        rot_coords: np.ndarray
+            Rotamer coordinates np.array(natoms, 3, nrots)
+        chain: str
+            Chain Id of rotamer
         resid: str
-            Residue id of the rotamer
+            Residue Id of rotamer
 
         Returns
         -------
