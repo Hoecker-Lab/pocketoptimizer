@@ -135,7 +135,7 @@ class PeptideSampler(FFRotamerSampler):
         expand: list
             List of chi angles to expand [default: ['chi1', 'chi2']]
         accurate: bool
-            Whether to expand chi-angles by +/-2 std or also +/- 1 and 0.5 std [default: False]
+            Whether to expand chi-angles by +/-1 std or also 0.5 std [default: False]
         _keep_tmp: bool
             If the tmp directory should be deleted or not. Useful for debugging. [default: False]
         """
@@ -235,17 +235,17 @@ class PeptideSampler(FFRotamerSampler):
                                                 rotamer[i] * (np.pi/180), bonds=bonds)
                     # append rotameric states as frames to residue
                     residue.appendFrames(current_rot)
+                # Remove the original conformation
+                residue.dropFrames(drop=0)
 
-            # Remove the original conformation
-            residue.dropFrames(drop=0)
             num_confs = confs.coords.shape[-1]
-
             for conf_id in range(num_confs):
                 modified_conf = struc.copy()
                 modified_conf.set('coords', confs.coords[:, :, conf_id])
                 for rotamer_id in range(residue.coords.shape[-1]):
                     modified_conf.set('coords', residue.coords[:, :, rotamer_id], sel=f'chain {chain} and resid {resid}')
                     confs.appendFrames(modified_conf)
+            # Remove the starting conformation
             confs.dropFrames(drop=num_confs - 1)
 
         nconfs = confs.coords.shape[-1]
@@ -256,13 +256,13 @@ class PeptideSampler(FFRotamerSampler):
         energies = np.ndarray(nconfs)
         with tqdm(total=nconfs, desc='Filter Conformers') as pbar:
             with mp.Pool(processes=self.ncpus) as pool:
-                for pose_id, energy in enumerate(pool.imap(
+                for conf_id, energy in enumerate(pool.imap(
                         partial(self.calculate_energy,
                                 structure=confs.copy(),
                                 ffev=ffev
                                 ), np.arange(nconfs),
                         chunksize=calculate_chunks(nposes=nconfs, ncpus=self.ncpus))):
-                    energies[pose_id] = energy
+                    energies[conf_id] = energy
                     pbar.update()
         val_ids = [val_id[0] for val_id in np.argwhere(energies <= min(energies) + nrg_thresh)]
 

@@ -72,7 +72,7 @@ class LigandScorer(Storer):
         from pocketoptimizer.utility.utils import load_ff_parameters, write_energies, calculate_chunks
         from pocketoptimizer.utility.molecule_types import backbone_atoms
 
-        structure_path = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', 'native_complex')
+        structure_path = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params', 'ligand_sampling_pocket')
 
         if not os.path.exists(os.path.join(structure_path, 'structure.pdb')):
             logger.error('Missing protein-ligand complex build.')
@@ -104,7 +104,6 @@ class LigandScorer(Storer):
                         chunksize=calculate_chunks(nposes=nposes, ncpus=self.ncpus))):
                     self_nrgs[index] = energy
                     pbar.update()
-
         if self.intra:
             # Generate FFEvaluate object for scoring ligand conformation
             struc.filter('segid L', _logger=False)
@@ -115,13 +114,12 @@ class LigandScorer(Storer):
                     pbar.set_description('Ligand_Internal')
                     for index, energy in enumerate(pool.imap(partial(
                             self.calculate_energy,
-                            struc=struc.copy(),
+                            struc=struc,
                             ffev=ffev,
                             pose_coords=pose_coords), [(pose,) for pose in range(nposes)],
                             chunksize=calculate_chunks(nposes=nposes, ncpus=self.ncpus))):
                         self_nrgs[index] += energy
                         pbar.update()
-
         # Save data as csv
         write_energies(outpath=outfile,
                        energies=self_nrgs,

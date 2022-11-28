@@ -117,7 +117,7 @@ class FFRotamerSampler(Storer):
     @staticmethod
     def expand_dunbrack(rotamers: Dict[str, List[Tuple[float]]], expand: List[str] = ['chi1', 'chi2'], accurate: bool = False) -> Dict[str, List[Tuple[float]]]:
         """
-        Expands defined chi-angles by +/- 2 Std
+        Expands defined chi-angles by +/- 1 Std
 
         Parameters
         ----------
@@ -126,7 +126,7 @@ class FFRotamerSampler(Storer):
         expand: list
             List of which chi angles to expand, [default: ['chi1', 'chi2']]
         accurate: bool
-            Whether to expand chi-angles additionally by +/- 0.5 and 1 std
+            Whether to expand chi-angles additionally by +/- 0.5 std
 
         Returns
         -------
@@ -141,14 +141,12 @@ class FFRotamerSampler(Storer):
             rotamer_chi_angles.append([])
             for j, chi_angle in enumerate(rotamer):
                 if f'chi{str(j+1)}' in expand:
-                    rotamer_chi_angles[i].append([chi_angle - 2 * rotamers['std'][i][j],
+                    rotamer_chi_angles[i].append([chi_angle - 1 * rotamers['std'][i][j],
                                                   chi_angle,
-                                                  chi_angle + 2 * rotamers['std'][i][j]])
+                                                  chi_angle + 1 * rotamers['std'][i][j]])
                     if accurate:
-                        rotamer_chi_angles[i][j].extend([chi_angle - 1 * rotamers['std'][i][j],
-                                                         chi_angle - 0.5 * rotamers['std'][i][j],
-                                                         chi_angle + 0.5 * rotamers['std'][i][j],
-                                                         chi_angle + 1 * rotamers['std'][i][j]])
+                        rotamer_chi_angles[i][j].extend([chi_angle - 0.5 * rotamers['std'][i][j],
+                                                         chi_angle + 0.5 * rotamers['std'][i][j]])
                 else:
                     rotamer_chi_angles[i].append([chi_angle])
 
@@ -226,7 +224,7 @@ class FFRotamerSampler(Storer):
                             line = line[:22] + str(rot_id).rjust(4) + line[26:]
                         elif line.startswith('CONECT'):
                             continue
-                        # skip 'END' lines (distinguish between 'END' and 'ENDMDL')
+                        # skip 'END' lines
                         elif line.startswith('END') and not line.startswith('ENDMDL'):
                             continue
                         merged_rot_file.write(line)
@@ -248,7 +246,7 @@ class FFRotamerSampler(Storer):
         expand: list
             List of chi angles to expand [default: ['chi1', 'chi2']]
         accurate: bool
-            Whether to expand chi-angles additionally by +/- 0.5 and 1 std
+            Whether to expand chi-angles additionally by +/- 0.5 std
         _keep_tmp: bool
             If the tmp directory should be deleted or not. Useful for debugging. [default: False]
         """

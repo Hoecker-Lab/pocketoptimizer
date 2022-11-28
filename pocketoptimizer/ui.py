@@ -94,12 +94,12 @@ class DesignPipeline:
         antechamber_path = which('antechamber')
         if not antechamber_path:
             antechamber_path = '#'
-            logger.warning("Antechamber not found make sure ambertools/ambermini is installed and in your path.")
+            logger.warning("Antechamber not found make sure ambertools is installed and in your path.")
         self.antechamber = antechamber_path
         tleap_path = which('tleap')
         if not tleap_path:
             tleap_path = '#'
-            logger.warning("Tleap not found make sure ambertools/ambermini is installed and in your path.")
+            logger.warning("Tleap not found make sure ambertools is installed and in your path.")
         self.tleap = tleap_path
         parmchk2_path = which('parmchk2')
         if not parmchk2_path:

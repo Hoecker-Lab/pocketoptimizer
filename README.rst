@@ -687,11 +687,13 @@ which makes the software for academic use only.
 Publications
 ************
 
-**Binding pocket optimization by computational protein design**, Malisi C, Schumann M, Toussaint NC, Kageyama J, Kohlbacher O, Höcker B.,
-PLoS One. 2012;7(12):e52505. doi: `10.1371/journal.pone.0052505
-<https://www.ncbi.nlm.nih.gov/pubmed/23300688>`_. Epub 2012 Dec 27.
-
+**PocketOptimizer 2.0: A modular framework for computer-aided ligand-binding design**, Noske J, Kynast JP, Lemm D, Schmidt S, Höcker B.
+Protein Sci. 2022 Nov 19:e4516. doi: `10.1002/pro.4516 <https://pubmed.ncbi.nlm.nih.gov/36403089/>`_.
 
 **PocketOptimizer and the Design of Ligand Binding Sites**, Stiel AC, Nellen M, Höcker B.,
 Methods Mol Biol. 2016;1414:63-75. doi: `10.1007/978-1-4939-3569-7_5
 <https://www.ncbi.nlm.nih.gov/pubmed/27094286>`_.
+
+**Binding pocket optimization by computational protein design**, Malisi C, Schumann M, Toussaint NC, Kageyama J, Kohlbacher O, Höcker B.,
+PLoS One. 2012;7(12):e52505. doi: `10.1371/journal.pone.0052505
+<https://www.ncbi.nlm.nih.gov/pubmed/23300688>`_.
