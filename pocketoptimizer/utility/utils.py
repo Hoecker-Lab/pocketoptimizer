@@ -1,6 +1,5 @@
 import glob
 import os
-from os.path import dirname
 from typing import List, Dict, Tuple, Union, NoReturn
 from natsort import natsorted
 import itertools
@@ -75,13 +74,14 @@ class Storer:
 
 class MutationProcessor:
 
-    def __init__(self, structure: Molecule, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str, non_standard_aa: bool = False):
+    def __init__(self, structure: str, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str, non_standard_aa: bool = False):
         """
         Constructor Method.
 
         Class providing functions to process a list of mutations:
 
             - Remove duplicates
+            - Check termini
             - Unfold histidine protonation states
             - Verify no mutation is involved in a cystine bridge
 
@@ -89,10 +89,10 @@ class MutationProcessor:
         ----------
         mutations: list
             List of mutations to be processed
-        structure: :class: Molecule
+        structure: str
             Structure to be checked for the mutations
         forcefield: str
-            Forcefield used
+            Forcefield
         non_standard_aa: bool
             Whether non-standard amino acid mutations are in the sequence [default: False]
         """
@@ -319,7 +319,7 @@ def fix_parameters(parameterfile: str) -> str:
     -------
     Path to the fixed file.
     """
-    new_prm_file = os.path.join(dirname(parameterfile), 'structure.prm')
+    new_prm_file = os.path.join(os.path.dirname(parameterfile), 'structure.prm')
     with open(parameterfile, 'r') as f:
         lines = f.readlines()
 

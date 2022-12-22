@@ -17,7 +17,6 @@ from simtk import unit
 import parmed
 
 from pocketoptimizer.utility.utils import fix_parameters, load_ff_parameters, create_pairs, Storer
-from pocketoptimizer.utility.molecule_types import _BB_ATOMS
 from pocketoptimizer.preparation.aacodes import special2standard
 from pocketoptimizer.path import path
 
@@ -35,7 +34,7 @@ class SystemBuilder(Storer):
         Parameters
         ----------
         structure: str
-            path to prepared scaffold/ligand
+            Path to structure
         """
         super().__init__(**kwargs)
         self.structure = structure
@@ -48,6 +47,7 @@ class SystemBuilder(Storer):
         Gaps in the protein are closed and the protein is protonated
 
         Parameters
+        ----------
         keep_chains: str
             Protein chain that will be extracted.
         discard_mols: list
@@ -56,7 +56,6 @@ class SystemBuilder(Storer):
         """
         # check if protein is already prepared
         if not os.path.isfile(self.prepared_protein):
-            logger.info('Starting protein preparation.')
             renumber = False
             with open(self.structure, 'r') as origin_scaffold:
                 for line in origin_scaffold:
@@ -117,7 +116,6 @@ class SystemBuilder(Storer):
         """
         # check if protein is already prepared
         if not os.path.isfile(self.ligand_protonated):
-            logger.info('Starting peptide preparation.')
             renumber = False
             with open(self.structure, 'r') as origin_scaffold:
                 for line in origin_scaffold:
@@ -225,7 +223,7 @@ class SystemBuilder(Storer):
 
         else:
             if not os.path.isfile(os.path.join(self.built_ligand_params['params_folder'], 'structure.pdb')):
-                logger.info('Build native protein.')
+                logger.info('Build peptide.')
                 self.build_ff(
                     structure=peptide,
                     outdir=self.built_ligand_params['params_folder'],
@@ -527,14 +525,6 @@ class SystemBuilder(Storer):
             bmol.set('chain', 'L', f'segid {lig_segid}')
             bmol.set('segid', 'L', f'segid {lig_segid}')
 
-        segids = list(filter(None, np.unique(bmol.segid)))  # Filter empty strings that can be assigned because of ligands
-        # fixed: set chain name of every segment to chain name of segment in original structure.
-        # reason: If one chain contained several segments (chain breaks) these segments got no chain name at all
-
-        for segid in segids:
-            chain = np.unique(structure.get('chain', sel=f'segid {segid}'))[0]
-            bmol.set('chain', chain, f'segid {segid}')
-
         if renumber:
             try:
                 bmol.renumberResidues()
@@ -548,11 +538,8 @@ class SystemBuilder(Storer):
                 for i, e in enumerate(count_dups):
                     bmol.resid[count:count + e] = resmap[i]
                     count += e
-            except AssertionError as e:
-                logger.warning(f'{e} \n'
-                      'It could be the case that your input protein resids are not numbered correctly.\n'
-                      'Resids are going to be renumbered incrementally.\n'
-                      f'Check the resid_map.csv under {outdir} to get an overview of the resids.')
+            except AssertionError:
+                logger.warning(f'Check the resid_map.csv under {outdir} to get an overview of the new resids.')
                 m = structure.renumberResidues(returnMapping=True)
                 m.to_csv(os.path.join(outdir, 'resid_map.csv'), index=False)
         bmol.write(os.path.join(outdir, 'structure.pdb'))
@@ -746,7 +733,7 @@ class SystemBuilder(Storer):
             force.addPerParticleParameter("y0")
             force.addPerParticleParameter("z0")
             for i, atom_crd in enumerate(inpcrd.positions):
-                if structure.name[i] in _BB_ATOMS:
+                if structure.name[i] in ('N', 'CA', 'C'):
                     force.addParticle(i, atom_crd.value_in_unit(unit.nanometers))
             system.addForce(force)
 

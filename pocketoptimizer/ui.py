@@ -33,7 +33,7 @@ class DesignPipeline:
     """
 
     def __init__(self, work_dir: str, forcefield: str, intra: bool = False, elec: float = 0.01,
-                 ph: float = 7.2, peptide: bool = False, ncpus: int = 1):
+                 ph: float = 7.0, peptide: bool = False, ncpus: int = 1):
         """
         Constructor method
 
@@ -48,21 +48,18 @@ class DesignPipeline:
         elec: float
             Scaling factor for electrostatic components [default: 0.01]
         pH: float
-            pH value that will be used to adjust the protonation states [default: 7.2]
+            pH value that will be used to adjust the protonation states [default: 7.0]
         peptide: bool
             Whether the ligand is a peptide [default: False]
         ncpus:
             Number of CPUs to use [default: 1]
         """
-        import sys
         import tempfile
         import multiprocessing as mp
         from pocketoptimizer.path import path
 
         self.work_dir = work_dir
         os.chdir(self.work_dir)
-        if not self.work_dir in sys.path:
-            sys.path.insert(0, self.work_dir)
 
         self.logfile = os.path.join(self.work_dir, 'pocketoptimizer.log')
         # Set environment variable to standard path
@@ -258,10 +255,8 @@ class DesignPipeline:
         else:
             logger.info('Ligand is already parametrized.')
 
-    def prepare_protein(self, protein_structure: str, keep_chains: List = [],
-                        minimize: bool = True, backbone_restraint: bool = True,
-                        discard_mols: List[Dict[str, str]] = [], peptide_structure: str = None,
-                        peptide_mutations: List[Dict[str, str]] = [], cuda: bool = False) -> NoReturn or None:
+    def prepare_protein(self, protein_structure: str, keep_chains: List = [], discard_mols: List[Dict[str, str]] = [], peptide_structure: str = None,
+                        peptide_mutations: List[Dict[str, str]] = None, minimize: bool = True, backbone_restraint: bool = True, cuda: bool = False) -> NoReturn:
             """
             Protonates and cleans the protein structure followed by a subsequent minimization step.
 
@@ -279,23 +274,35 @@ class DesignPipeline:
                 Path to the protein PDB file.
             keep_chains: list
                 Protein chain which will be extracted for the design (['A', 'B'])
+            discard_mols: list
+                List of dictionaries containing chain and resid of the molecules to discard. In the case of amino acid ligands,
+                these have to be manually discarded with this option
+            peptide: str
+                Path to peptide that should be prepared
+            peptide_mutations: list
+                allows to set peptide mutations in the following way [{'resid': '6', 'mutation': 'ALA'}]
             minimize: bool
                 Whether to minmize the protein structure [default: True]
             backbone_restraint: bool
                 Restraints the backbone during minimization. [default: True]
-            discard_mols: list
-                List of dictionaries containing chain and resid of the molecules to discard. In the case of amino acid ligands,
-                these have to be manually discarded with this option. [default: None]
-            peptide: str
-                Path to peptide that should be prepared
-            peptide_mutations: list
-                allows to set peptide mutations in the following way [{'resid': '6', 'mutation': 'ALA'}] [default: None]
             cuda: bool
                 If the minimization should be performed on a GPU. [default: False]
             """
             from pocketoptimizer.preparation.structure_building import SystemBuilder
 
             logger.info('Start Protein Preparation.')
+
+            if not type(keep_chains) == list:
+                logger.error('Define chains in a list.')
+                raise TypeError('Define chains in a list.')
+
+            if not type(discard_mols) == list:
+                logger.error('Define molecules in a list of dictionaries.')
+                raise TypeError('Define molecules in a list of dictionaries.')
+
+            if not type(peptide_mutations) == list:
+                logger.error('Define mutations in a list of dictionaries.')
+                raise TypeError('Define mutations in a list of dictionaries.')
 
             if self.peptide:
                 if not peptide_structure:
@@ -317,18 +324,6 @@ class DesignPipeline:
                 system.prepare_peptide()
                 # Build force field parameters for peptide
                 system.build_peptide()
-
-            if not type(keep_chains) == list:
-                logger.error('Define chains in a list.')
-                raise TypeError('Define chains in a list.')
-
-            if not type(discard_mols) == list:
-                logger.error('Define molecules in a list of dictionaries.')
-                raise TypeError('Define molecules in a list of dictionaries.')
-
-            if not type(peptide_mutations) == list:
-                logger.error('Define mutations in a list of dictionaries.')
-                raise TypeError('Define mutations in a list of dictionaries.')
 
             system = SystemBuilder(design_pipeline=self,
                                    structure=os.path.join(self.work_dir, protein_structure))
@@ -360,9 +355,6 @@ class DesignPipeline:
 
             else:
                 logger.info('Your scaffold is already prepared.')
-
-            if os.path.exists(os.path.join(self.work_dir, 'scaffold', 'conversion_table.txt')):
-                logger.info(f'Please change your residue ID numbers according to {os.path.join(self.work_dir, "scaffold", "conversion_table.txt")} and start from set_mutations() again.')
 
             logger.info('Protein preparation finished.')
 
@@ -504,7 +496,6 @@ class DesignPipeline:
         self._set_rot_lib(library)
 
         if vdw_filter_thresh < 0:
-            logger.warning('Energy threshold can not be negative.')
             vdw_filter_thresh = 0
 
         rotamer_sampler = FFRotamerSampler(design_pipeline=self)
@@ -547,7 +538,6 @@ class DesignPipeline:
             raise ValueError('Define grid, if grid method should be used.')
 
         if vdw_filter_thresh < 0:
-            logger.warning('Energy threshold can not be negative.')
             vdw_filter_thresh = 0
 
         sampling_scaffold_ligand = os.path.join(self.work_dir, 'scaffold', self.forcefield, 'protein_params',
@@ -918,7 +908,7 @@ def main():
     parser.add_argument('--scaling', type=int, default=1, help='Ligand scaling factor, default: 1', required=False)
     parser.add_argument('--num_solutions', type=int, default=10, help='Number of design solutions to calculate, default 10', required=False)
     parser.add_argument('--ncpus', type=int, default=1, help='Number of CPUs for multiprocessing', required=False)
-    parser.add_argument('--cuda', action='store_true', help='Enabling cuda for GPU based minimization')
+    parser.add_argument('--cuda', action='store_true', help='Enabling cuda for GPU-based minimization')
 
     # Custom class for cleaning the working directory
     class CleanWorkDir(argparse.Action):
@@ -930,8 +920,13 @@ def main():
     parser.add_argument('--clean', nargs=1, action=CleanWorkDir, help='Clean the working directory', required=False)
     args = parser.parse_args()
 
+    keep_chains = []
+    if args.keep_chains:
+        for chain in args.keep_chains:
+            keep_chains.append(chain)
+
     discard_mols = []
-    if args.discard_mols is not None:
+    if args.discard_mols:
         for mol in args.discard_mols:
             try:
                 chain, resid = mol.split(':')
@@ -969,7 +964,7 @@ def main():
                                             peptide=args.peptide)
     if args.peptide:
         design.prepare_protein(protein_structure=args.receptor,
-                               keep_chains=args.keep_chains,
+                               keep_chains=keep_chains,
                                minimize=not args.no_min,
                                backbone_restraint=not args.min_bb,
                                discard_mols=discard_mols,
@@ -985,7 +980,7 @@ def main():
         design.parameterize_ligand(input_ligand=args.ligand)
         design.prepare_lig_conformers(nconfs=args.nconfs)
         design.prepare_protein(protein_structure=args.receptor,
-                               keep_chains=args.keep_chains,
+                               keep_chains=keep_chains,
                                minimize=not args.no_min,
                                backbone_restraint=not args.min_bb,
                                discard_mols=discard_mols,
