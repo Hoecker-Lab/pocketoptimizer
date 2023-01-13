@@ -36,8 +36,6 @@ class PoseSampler(Storer):
                 option: 'diverse' filters diverse poses using the min/max-diversity picker from RDKit
                 after pruning of poses and option: 'distance' filters poses based on the distance to scaffold
                 before pruning of poses
-        peptide: bool
-            Whether ligand is a peptide [default: False]
         """
         super().__init__(**kwargs)
         self.sampling_method = sampling_method
@@ -449,10 +447,8 @@ class PoseSampler(Storer):
 
         try:
             ligand_confs = Molecule(self.ligand_conformers)
-            # Dont append native conf for peptides as it is already included
-            if not self.peptide:
-                native_conf = np.expand_dims(struc.get('coords', sel='segid L'), axis=2)
-                ligand_confs.coords = np.dstack((ligand_confs.coords, native_conf))
+            native_conf = np.expand_dims(struc.get('coords', sel='segid L'), axis=2)
+            ligand_confs.coords = np.dstack((ligand_confs.coords, native_conf))
         except (IndexError, FileNotFoundError):
             # If ligand confs doesn't exist or doesn't contain conformers
             logger.error(f'{self.ligand_conformers} does not exist or does not contain conformers.')

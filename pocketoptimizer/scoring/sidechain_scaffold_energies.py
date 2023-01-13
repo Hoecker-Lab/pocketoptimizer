@@ -54,7 +54,7 @@ class SidechainSelfScorer(Storer):
         # Set coordinates to current rotamer
         struc.set('coords', res_coords[:, :, id], f'chain {chain} and resid {resid}')
         energies = ffev.calculateEnergies(struc.coords)
-        return np.array([energies['vdw'], energies['elec'] * self.elec])
+        return np.array([energies['vdw'], energies['elec']])
 
     def calculate_scaffold(self) -> NoReturn:
         """

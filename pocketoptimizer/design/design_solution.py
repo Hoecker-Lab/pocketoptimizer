@@ -309,10 +309,7 @@ class DesignSolution(Storer):
                 design_structure.remove(f'chain {chain_id} and resid {res_id}', _logger=False)
                 design_structure.insert(residue_mol, insert_atom_idx)
             # Write ligand pose and scaffold structure to output directory
-            if not self.peptide:
-                ligand.write(os.path.join(design_path, str(num), 'ligand.mol2'))
-            else:
-                ligand.write(os.path.join(design_path, str(num), 'ligand.pdb'))
+            ligand.write(os.path.join(design_path, str(num), 'ligand.mol2'))
             design_structure.write(os.path.join(design_path, str(num), 'receptor.pdb'))
 
     def get_residue_for_positions(self, solution_index: int, position: str) -> str:

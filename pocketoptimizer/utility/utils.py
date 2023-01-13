@@ -29,15 +29,11 @@ class Storer:
 
         """
         self.work_dir = design_pipeline.work_dir
-        self.peptide = design_pipeline.peptide
         self.ph = design_pipeline.ph
         self.temperature = design_pipeline.temperature
         self.mutations = design_pipeline.mutations
-        if self.peptide:
-            self.peptide_mutations = design_pipeline.peptide_mutations
         self.forcefield = design_pipeline.forcefield
         self.intra = design_pipeline.intra
-        self.elec = design_pipeline.elec
         self.scorer = design_pipeline.scorer
         self.library = design_pipeline.library
         self.rotamer_path = design_pipeline.rotamer_path
@@ -74,7 +70,7 @@ class Storer:
 
 class MutationProcessor:
 
-    def __init__(self, structure: str, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str, non_standard_aa: bool = False):
+    def __init__(self, structure: str, mutations: List[Dict[str, Union[str, List[str]]]], forcefield: str):
         """
         Constructor Method.
 
@@ -93,8 +89,6 @@ class MutationProcessor:
             Structure to be checked for the mutations
         forcefield: str
             Forcefield
-        non_standard_aa: bool
-            Whether non-standard amino acid mutations are in the sequence [default: False]
         """
         self.mutations = mutations
         self.structure = Molecule(structure)
@@ -115,9 +109,6 @@ class MutationProcessor:
         elif self.forcefield == 'charmm36':
             self.aa.update({'HIS': ['HSD', 'HSE', 'HSP']})
         self.aa['ALL'].extend(self.aa['HIS'])
-        if non_standard_aa:
-            self.aa.update({'NON-STANDARD': ['SEP', 'PTR']})
-            self.aa['ALL'].extend(self.aa['NON-STANDARD'])
 
     def check_positions(self, check_termini: bool = True) -> NoReturn:
         """
@@ -140,8 +131,8 @@ class MutationProcessor:
             cystine = self.structure.get('resname', sel=f'chain {chain} and resid {resid} and name CA') == 'CYX'
 
             if not len(index):
-                logger.warning(f'Position: {chain}_{resid} is not in the protein.')
-                continue
+                logger.error(f'Position: {chain}_{resid} is not in the protein.')
+                raise RuntimeError(f'Position: {chain}_{resid} is not in the protein.')
             elif cystine:
                 logger.warning(f'Position: {chain}_{resid} was removed because it is involved in a disulfide bond.')
                 continue

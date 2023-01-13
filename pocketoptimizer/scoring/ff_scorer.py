@@ -56,7 +56,7 @@ class LigandScorer(Storer):
         # set coordinates to current ligand pose
         struc.set('coords', pose_coords[..., ids[0]], 'segid L')
         energies = ffev.calculateEnergies(struc.coords)
-        return np.array([energies['vdw'], energies['elec'] * self.elec])
+        return np.array([energies['vdw'], energies['elec']])
 
     def run_self_nrg(self, pose_coords: np.ndarray, nposes: int) -> NoReturn:
         """
