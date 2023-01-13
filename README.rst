@@ -615,55 +615,55 @@ By running the python script: ui.py, you can also access the command line interf
 
 .. code-block:: bash
 
-usage: ui.py [-h] [-ff FORCEFIELD] [--intra] -r RECEPTOR -l LIGAND [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--min_bb] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...] [--vdw_thresh VDW_THRESH] [--library LIBRARY]
-             [--dunbrack_filter_thresh DUNBRACK_FILTER_THRESH] [--accurate] [--include_native] [--nconfs NCONFS] [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS] [--max_poses MAX_POSES] [--sampling_pocket SAMPLING_POCKET]
-             [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--cuda] [--clean CLEAN]
+    usage: ui.py [-h] [-ff FORCEFIELD] [--intra] -r RECEPTOR -l LIGAND [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--min_bb] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...] [--vdw_thresh VDW_THRESH] [--library LIBRARY]
+                 [--dunbrack_filter_thresh DUNBRACK_FILTER_THRESH] [--accurate] [--include_native] [--nconfs NCONFS] [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS] [--max_poses MAX_POSES] [--sampling_pocket SAMPLING_POCKET]
+                 [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--cuda] [--clean CLEAN]
 
-PocketOptimizer computational protein design pipeline CLI, for more options use API.
+    PocketOptimizer computational protein design pipeline CLI, for more options use API.
 
-options:
-  -h, --help            show this help message and exit
-  -ff FORCEFIELD, --forcefield FORCEFIELD
-                        Force field to be used either: amber_ff14SB or charmm36
-  --intra               Whether to calculate internal energies
-  -r RECEPTOR, --receptor RECEPTOR
-                        Protein input structure file in pdb format
-  -l LIGAND, --ligand LIGAND
-                        Ligand input structure file
-  --ph PH               ph value for side chain and ligand protonation
-  --keep_chains [KEEP_CHAINS ...]
-                        Chains to keep by their chain identifiers
-  --min_bb              Whether to minimize the proteins backbone
-  --discard_mols [DISCARD_MOLS ...]
-                        Special molecules to exclude by their chain and residue identifier (A:1), per default everything, but peptides have to be defined manually
-  --mutations MUTATIONS [MUTATIONS ...]
-                        Mutations (A:1:ALA)
-  --vdw_thresh VDW_THRESH
-                        Energy threshold for rotamer and ligand pose sampling (kcal/mol)
-  --library LIBRARY     Rotamer library, options are: dunbrack or cmlib
-  --dunbrack_filter_thresh DUNBRACK_FILTER_THRESH
-                        Filter threshold for dunbrack rotamer library (between 0 and 1), default: 0.01
-  --accurate            Sample additional rotamers
-  --include_native      Include native rotamer
-  --nconfs NCONFS       Number of ligand conformers to sample, default: 50
-  --rot ROT, --rot ROT  Maximum ligand rotation, default: 20°
-  --rot_steps ROT_STEPS, --rot_steps ROT_STEPS
-                        Ligand rotation steps, default: 20°
-  --trans TRANS, --trans TRANS
-                        Maximum ligand translation, default: 1 Å
-  --trans_steps TRANS_STEPS, --trans_steps TRANS_STEPS
-                        Ligand translation steps, default 0.5 Å
-  --max_poses MAX_POSES, --max_poses MAX_POSES
-                        Maximum number of ligand poses to sample, default: 10000
-  --sampling_pocket SAMPLING_POCKET
-                        Sampling pocket for rotamer and ligand pose sampling, default: ALA
-  --scoring SCORING     Scoring function, options are: vina, vinardo, ad4_scoring, force_field
-  --scaling SCALING     Ligand scaling factor, default: 1
-  --num_solutions NUM_SOLUTIONS
-                        Number of design solutions to calculate, default 10
-  --ncpus NCPUS         Number of CPUs for multiprocessing
-  --cuda                Enabling cuda for GPU-based minimization
-  --clean CLEAN         Clean the working directory
+    options:
+      -h, --help            show this help message and exit
+      -ff FORCEFIELD, --forcefield FORCEFIELD
+                            Force field to be used either: amber_ff14SB or charmm36
+      --intra               Whether to calculate internal energies
+      -r RECEPTOR, --receptor RECEPTOR
+                            Protein input structure file in pdb format
+      -l LIGAND, --ligand LIGAND
+                            Ligand input structure file
+      --ph PH               ph value for side chain and ligand protonation
+      --keep_chains [KEEP_CHAINS ...]
+                            Chains to keep by their chain identifiers
+      --min_bb              Whether to minimize the proteins backbone
+      --discard_mols [DISCARD_MOLS ...]
+                            Special molecules to exclude by their chain and residue identifier (A:1), per default everything, but peptides have to be defined manually
+      --mutations MUTATIONS [MUTATIONS ...]
+                            Mutations (A:1:ALA)
+      --vdw_thresh VDW_THRESH
+                            Energy threshold for rotamer and ligand pose sampling (kcal/mol)
+      --library LIBRARY     Rotamer library, options are: dunbrack or cmlib
+      --dunbrack_filter_thresh DUNBRACK_FILTER_THRESH
+                            Filter threshold for dunbrack rotamer library (between 0 and 1), default: 0.01
+      --accurate            Sample additional rotamers
+      --include_native      Include native rotamer
+      --nconfs NCONFS       Number of ligand conformers to sample, default: 50
+      --rot ROT, --rot ROT  Maximum ligand rotation, default: 20°
+      --rot_steps ROT_STEPS, --rot_steps ROT_STEPS
+                            Ligand rotation steps, default: 20°
+      --trans TRANS, --trans TRANS
+                            Maximum ligand translation, default: 1 Å
+      --trans_steps TRANS_STEPS, --trans_steps TRANS_STEPS
+                            Ligand translation steps, default 0.5 Å
+      --max_poses MAX_POSES, --max_poses MAX_POSES
+                            Maximum number of ligand poses to sample, default: 10000
+      --sampling_pocket SAMPLING_POCKET
+                            Sampling pocket for rotamer and ligand pose sampling, default: ALA
+      --scoring SCORING     Scoring function, options are: vina, vinardo, ad4_scoring, force_field
+      --scaling SCALING     Ligand scaling factor, default: 1
+      --num_solutions NUM_SOLUTIONS
+                            Number of design solutions to calculate, default 10
+      --ncpus NCPUS         Number of CPUs for multiprocessing
+      --cuda                Enabling cuda for GPU-based minimization
+      --clean CLEAN         Clean the working directory
 
 
 LICENSE
