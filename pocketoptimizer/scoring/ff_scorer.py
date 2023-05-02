@@ -104,22 +104,6 @@ class LigandScorer(Storer):
                         chunksize=calculate_chunks(nposes=nposes, ncpus=self.ncpus))):
                     self_nrgs[index] = energy
                     pbar.update()
-        if self.intra:
-            # Generate FFEvaluate object for scoring ligand conformation
-            struc.filter('segid L', _logger=False)
-            ffev = FFEvaluate(struc, prm)
-
-            with mp.Pool(processes=self.ncpus) as pool:
-                with tqdm(total=nposes) as pbar:
-                    pbar.set_description('Ligand_Internal')
-                    for index, energy in enumerate(pool.imap(partial(
-                            self.calculate_energy,
-                            struc=struc,
-                            ffev=ffev,
-                            pose_coords=pose_coords), [(pose,) for pose in range(nposes)],
-                            chunksize=calculate_chunks(nposes=nposes, ncpus=self.ncpus))):
-                        self_nrgs[index] += energy
-                        pbar.update()
         # Save data as csv
         write_energies(outpath=outfile,
                        energies=self_nrgs,

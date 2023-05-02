@@ -134,25 +134,6 @@ class SidechainSelfScorer(Storer):
                             self_nrgs[index] = energy
                             pbar.update()
 
-                if self.intra:
-                    # Generate FFEvaluate object for scoring sidechain conformation
-                    struc.filter(f'chain {chain} and resid {resid}', _logger=False)
-                    ffev = FFEvaluate(struc, prm)
-
-                    with mp.Pool(processes=self.ncpus) as pool:
-                        with tqdm(total=nconfs) as pbar:
-                            pbar.set_description(f'{chain}_{resid}_{resname}_Internal')
-                            for index, energy in enumerate(pool.imap(partial(
-                                    self.calculate_energy,
-                                    struc=struc.copy(),
-                                    ffev=ffev,
-                                    res_coords=mol.coords,
-                                    resid=resid,
-                                    chain=chain), np.arange(nconfs),
-                                    chunksize=calculate_chunks(nposes=nconfs, ncpus=self.ncpus))):
-                                self_nrgs[index] += energy
-                                pbar.update()
-
                 # Save data as csv
                 write_energies(outpath=outfile,
                                energies=self_nrgs,

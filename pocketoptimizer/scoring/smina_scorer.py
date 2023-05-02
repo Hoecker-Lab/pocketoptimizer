@@ -63,7 +63,7 @@ class SminaScorer(Storer):
         self.terms = [weight for weight in self.smina_weights[self.scorer].keys()]
         self.weights = [weight for weight in self.smina_weights[self.scorer].values()]
 
-    def parse_smina(self, smina_output: str, nposes: int, intra: bool) -> np.ndarray:
+    def parse_smina(self, smina_output: str, nposes: int) -> np.ndarray:
         """
         Smina output parsing function
 
@@ -73,37 +73,22 @@ class SminaScorer(Storer):
             Standard output captured from calling smina
         nposes: int
             Number of ligand poses
-        intra: bool
-            Whether to parse intramolecular energies
 
         Returns
         -------
         Array containing weighted energy components for all poses
         """
-        if intra and self.intra:
-            nrgs = np.zeros(len(self.weights) + 1)
-            scores = np.zeros((nposes, len(self.smina_weights[self.scorer]) + 1))
-        else:
-            nrgs = np.zeros(len(self.weights))
-            scores = np.zeros((nposes, len(self.smina_weights[self.scorer])))
+        nrgs = np.zeros(len(self.weights))
+        scores = np.zeros((nposes, len(self.smina_weights[self.scorer])))
 
         j = 0
         for line in smina_output.split('\n'):
             # Read out the energies for each pose
-            if intra and self.intra:
-                if line.startswith('Intramolecular energy:'):
-                    nrgs[0] = float(line.strip().split()[2])
-                elif line.startswith('## ') and not line.startswith('## Name'):
-                    for i, nrg in enumerate(line.strip().split()[2:]):
-                        nrgs[i + 1] = float(nrg) * self.weights[i]
-                    scores[j] = nrgs
-                    j += 1
-            else:
-                if line.startswith('## ') and not line.startswith('## Name'):
-                    for i, nrg in enumerate(line.strip().split()[2:]):
-                        nrgs[i] = float(nrg) * self.weights[i]
-                    scores[j] = nrgs
-                    j += 1
+            if line.startswith('## ') and not line.startswith('## Name'):
+                for i, nrg in enumerate(line.strip().split()[2:]):
+                    nrgs[i] = float(nrg) * self.weights[i]
+                scores[j] = nrgs
+                j += 1
         return scores
 
     def prepare_scaffold(self) -> NoReturn:
@@ -169,7 +154,7 @@ class SminaScorer(Storer):
                     for line in pose_file:
                         combined_file.write(line)
 
-    def score_smina(self, receptor: str, ligand: str, nposes: int, intra: bool) -> np.ndarray:
+    def score_smina(self, receptor: str, ligand: str, nposes: int) -> np.ndarray:
         """
         Runs Smina scoring process for a receptor and ligand/s
 
@@ -181,8 +166,6 @@ class SminaScorer(Storer):
             Ligand structure/s
         nposes: int
             Number of ligand poses
-        intra: bool
-            Whether to parse intramolecular energy
 
         Returns
         -------
@@ -198,7 +181,7 @@ class SminaScorer(Storer):
             '--scoring', self.scorer
         ]
         process = subprocess.run(score_command, capture_output=True)
-        return self.parse_smina(process.stdout.decode('ascii'), nposes=nposes, intra=intra)
+        return self.parse_smina(process.stdout.decode('ascii'), nposes=nposes)
 
     def run_smina_scorer(self, _keep_tmp: bool = False) -> NoReturn:
         """
@@ -250,15 +233,11 @@ class SminaScorer(Storer):
             with tqdm(total=1, desc='Ligand/Scaffold') as pbar:
                 self_nrgs = self.score_smina(receptor='pocketless.pdb',
                                              ligand=lig_outfile,
-                                             nposes=nposes,
-                                             intra=True)
+                                             nposes=nposes)
                 pbar.update()
 
             # Save data as csv
-            if self.intra:
-                energy_terms = ['Intra'] + self.terms
-            else:
-                energy_terms = self.terms
+            energy_terms = self.terms
 
             write_energies(outpath=lig_scaffold_outfile,
                                energies=self_nrgs,
@@ -309,8 +288,7 @@ class SminaScorer(Storer):
                         res_pdb = f'{chain}_{resid}_{resname}_{rot}.pdb'
                         pair_nrg = self.score_smina(receptor=res_pdb,
                                                     ligand=lig_outfile,
-                                                    nposes=nposes,
-                                                    intra=False)
+                                                    nposes=nposes)
                         pair_nrgs[:, rot*nterms:rot*nterms + nterms] = pair_nrg
                         pbar.update()
 

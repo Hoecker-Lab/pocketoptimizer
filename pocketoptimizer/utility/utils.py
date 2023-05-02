@@ -33,7 +33,6 @@ class Storer:
         self.temperature = design_pipeline.temperature
         self.mutations = design_pipeline.mutations
         self.forcefield = design_pipeline.forcefield
-        self.intra = design_pipeline.intra
         self.scorer = design_pipeline.scorer
         self.library = design_pipeline.library
         self.rotamer_path = design_pipeline.rotamer_path

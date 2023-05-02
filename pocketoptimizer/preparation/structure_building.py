@@ -613,7 +613,7 @@ class SystemBuilder(Storer):
         distance_tolerance = 0.00001
         if not cuda:
             # Default value
-            tolerance = 10 * unit.kilojoule/unit.mole
+            tolerance = 10.0 * unit.kilojoule/unit.mole
         else:
             # High tolerance so the CPU only pre-minimizes
             tolerance = 1e6

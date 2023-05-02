@@ -32,7 +32,7 @@ class DesignPipeline:
     4. Calculate the best solutions
     """
 
-    def __init__(self, work_dir: str, forcefield: str, intra: bool = False, ph: float = 7.0, ncpus: int = 1):
+    def __init__(self, work_dir: str, forcefield: str, ph: float = 7.0, ncpus: int = 1):
         """
         Constructor method
 
@@ -42,8 +42,6 @@ class DesignPipeline:
             Working directory, all files will be created in this directory
         forcefield: str
             Force field used for sampling procedures and energy calculation steps [options: 'amber_ff14SB', 'charmm36']
-        intra: bool
-            Whether to consider intramolecular energies or not [default: False]
         elec: float
             Scaling factor for electrostatic components [default: 0.01]
         pH: float
@@ -121,7 +119,6 @@ class DesignPipeline:
         self.scorer = ''
         self.forcefield = ''
         self._set_ff(forcefield)
-        self.intra = intra
         self.library = ''
         self.rotamer_path = ''
         self.ph = ph
@@ -787,7 +784,6 @@ def main():
     import pocketoptimizer
     parser = argparse.ArgumentParser(description='PocketOptimizer computational protein design pipeline CLI, for more options use API.')
     parser.add_argument('-ff', '--forcefield', type=str, help='Force field to be used either: amber_ff14SB or charmm36', default='amber_ff14SB', required=False)
-    parser.add_argument('--intra', action='store_true', help='Whether to calculate internal energies')
     parser.add_argument('-r', '--receptor', type=str, help='Protein input structure file in pdb format', required=True)
     parser.add_argument('-l', '--ligand', type=str, help='Ligand input structure file', required=True)
     parser.add_argument('--ph', type=float, default=7.0, help='ph value for side chain and ligand protonation', required=False)
@@ -808,7 +804,7 @@ def main():
     parser.add_argument('--trans_steps', '--trans_steps', type=float, default=0.5, help='Ligand translation steps, default 0.5 Å', required=False)
     parser.add_argument('--max_poses', '--max_poses', type=int, default=10000, help='Maximum number of ligand poses to sample, default: 10000', required=False)
     parser.add_argument('--sampling_pocket', type=str, default='ALA', help='Sampling pocket for rotamer and ligand pose sampling, default: ALA', required=False)
-    parser.add_argument('--scoring', type=str, default='vina', help='Scoring function, options are: vina, vinardo, ad4_scoring, force_field', required=False)
+    parser.add_argument('--scoring', type=str, default='vina', help='Scoring function, options are: vina, vinardo, ad4_scoring, amber_ff14SB or charmm36', required=False)
     parser.add_argument('--scaling', type=int, default=1, help='Ligand scaling factor, default: 1', required=False)
     parser.add_argument('--num_solutions', type=int, default=10, help='Number of design solutions to calculate, default 10', required=False)
     parser.add_argument('--ncpus', type=int, default=1, help='Number of CPUs for multiprocessing', required=False)
@@ -852,7 +848,6 @@ def main():
     # Initialize new DesignPipeline in current working directory
     design = pocketoptimizer.DesignPipeline(work_dir=working_dir,
                                             forcefield=args.forcefield,
-                                            intra=args.intra,
                                             ph=args.ph,
                                             ncpus=args.ncpus)
     design.parameterize_ligand(input_ligand=args.ligand)

@@ -170,13 +170,11 @@ the following lines:
     design = po.DesignPipeline(work_dir=project_dir,         # Path to working directory containing scaffold and ligand subdirectory
                                ph=7,                         # pH used for protein and ligand protonation
                                forcefield='amber_ff14SB',    # forcefield used for all energy computations (Use Amber as it is better tested!)
-                               intra=False,                  # Whether to score intramolecular energies or not (Experimental, should be turned off!)
                                ncpus=8)                      # Number of CPUs for multiprocessing
 
 While you are initializing you can define a ``pH``, used for protonating the side chains of the protein and also the ligand molecule.
 Additionally, PocketOptimizer has two ``force fields`` implemented, the AMBER ff14SB and the CHARMM36 force field.
 These force fields contain parameters and energy functions to calculate the energy of the protein-ligand system.
-You can also decide whether to score ``intramolecular energies`` or not.
 Besides you can define the ``number of CPUs`` used for all energy calculations.
 
 2.1 Preparation/Minimization
@@ -615,17 +613,16 @@ By running the python script: ui.py, you can also access the command line interf
 
 .. code-block:: bash
 
-    usage: ui.py [-h] [-ff FORCEFIELD] [--intra] -r RECEPTOR -l LIGAND [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--min_bb] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...] [--vdw_thresh VDW_THRESH] [--library LIBRARY]
+    usage: ui.py [-h] [-ff FORCEFIELD] -r RECEPTOR -l LIGAND [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--min_bb] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...] [--vdw_thresh VDW_THRESH] [--library LIBRARY]
                  [--dunbrack_filter_thresh DUNBRACK_FILTER_THRESH] [--accurate] [--include_native] [--nconfs NCONFS] [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS] [--max_poses MAX_POSES] [--sampling_pocket SAMPLING_POCKET]
                  [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--cuda] [--clean CLEAN]
 
     PocketOptimizer computational protein design pipeline CLI, for more options use API.
 
-    options:
+    optional arguments:
       -h, --help            show this help message and exit
       -ff FORCEFIELD, --forcefield FORCEFIELD
                             Force field to be used either: amber_ff14SB or charmm36
-      --intra               Whether to calculate internal energies
       -r RECEPTOR, --receptor RECEPTOR
                             Protein input structure file in pdb format
       -l LIGAND, --ligand LIGAND
@@ -657,13 +654,14 @@ By running the python script: ui.py, you can also access the command line interf
                             Maximum number of ligand poses to sample, default: 10000
       --sampling_pocket SAMPLING_POCKET
                             Sampling pocket for rotamer and ligand pose sampling, default: ALA
-      --scoring SCORING     Scoring function, options are: vina, vinardo, ad4_scoring, force_field
+      --scoring SCORING     Scoring function, options are: vina, vinardo, ad4_scoring, amber_ff14SB or charmm36
       --scaling SCALING     Ligand scaling factor, default: 1
       --num_solutions NUM_SOLUTIONS
                             Number of design solutions to calculate, default 10
       --ncpus NCPUS         Number of CPUs for multiprocessing
       --cuda                Enabling cuda for GPU-based minimization
       --clean CLEAN         Clean the working directory
+
 
 
 LICENSE
