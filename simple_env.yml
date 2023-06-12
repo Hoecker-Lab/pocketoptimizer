@@ -2,10 +2,12 @@ name: pocketoptimizer
 channels:
   - conda-forge
   - defaults
+  - ostrokach
+  - omnia
   - acellera
   - bioconda
+  - oddt
   - psi4
-  - omnia
 dependencies:
   - htmd
   - smina
