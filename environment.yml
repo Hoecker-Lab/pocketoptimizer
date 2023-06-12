@@ -339,4 +339,3 @@ dependencies:
       - pdb4amber==22.0
       - pytraj==2.0.6
       - sander==22.0
-prefix: /agh/projects/jakob/miniconda3/envs/pocketoptimizer
