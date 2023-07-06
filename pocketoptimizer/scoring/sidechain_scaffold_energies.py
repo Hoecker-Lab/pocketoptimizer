@@ -54,7 +54,7 @@ class SidechainSelfScorer(Storer):
         # Set coordinates to current rotamer
         struc.set('coords', res_coords[:, :, id], f'chain {chain} and resid {resid}')
         energies = ffev.calculateEnergies(struc.coords)
-        return np.array([energies['vdw'], energies['elec']])
+        return np.array([energies['vdw'], energies['elec'] * 0.1])
 
     def calculate_scaffold(self) -> NoReturn:
         """
@@ -75,7 +75,7 @@ class SidechainSelfScorer(Storer):
                 outfile = os.path.join(self.side_scaff, f'{chain}_{resid}_{resname}.csv')
                 if os.path.isfile(outfile):
                     logger.info(
-                        f'Sidechain-Scaffold/Self interaction energy for residue: {chain}_{resid}_{resname} already computed.')
+                        f'Sidechain-Scaffold interaction energy for residue: {chain}_{resid}_{resname} already computed.')
                     continue
                 # Create Molecule object from rotamers of each residue
                 # Check if rotamers are computed for all mutations
@@ -97,7 +97,7 @@ class SidechainSelfScorer(Storer):
                     logger.error(f'Missing single mutated structure for mutation: {chain}_{resid}_{resname}.')
                     raise FileNotFoundError(f'Missing single mutated structure for mutation: {chain}_{resid}_{resname}.')
 
-                logger.info(f'Sidechain-Scaffold/Self interaction energy for residue: {chain}_{resid}_{resname} not computed yet.')
+                logger.info(f'Sidechain-Scaffold interaction energy for residue: {chain}_{resid}_{resname} not computed yet.')
 
                 # Read in structure and parameters
                 struc, prm = load_ff_parameters(structure_path=structure_path,
@@ -141,4 +141,4 @@ class SidechainSelfScorer(Storer):
                                name_a=resname,
                                nconfs_a=nconfs)
 
-        logger.info('Sidechain-Scaffold/Self calculation was successful.')
+        logger.info('Sidechain-Scaffold calculation was successful.')

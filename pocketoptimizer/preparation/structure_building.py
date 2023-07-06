@@ -610,7 +610,6 @@ class SystemBuilder(Storer):
         temperature = self.temperature * unit.kelvin
         friction = 1.0 / unit.picoseconds
         error_tolerance = 2.0 * unit.femtoseconds
-        distance_tolerance = 0.00001
         if not cuda:
             # Default value
             tolerance = 10.0 * unit.kilojoule/unit.mole
@@ -639,7 +638,6 @@ class SystemBuilder(Storer):
             system.addForce(force)
 
         # Setup CPU minimization
-        cpu_integrator.setConstraintTolerance(distance_tolerance)
         platform = mm.Platform.getPlatformByName('CPU')
         properties = None
         cpu_min = app.Simulation(structure_prm.topology, system, cpu_integrator, platform, properties)
@@ -663,7 +661,6 @@ class SystemBuilder(Storer):
                 friction,
                 error_tolerance
             )
-            gpu_integrator.setConstraintTolerance(distance_tolerance)
             gpu_min = app.Simulation(structure_prm.topology, system, gpu_integrator, platform, properties)
             gpu_min.context.setPositions(min_coords.getPositions())
             # Minimize until convergence

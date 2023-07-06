@@ -1,0 +1,68 @@
+
+ TOTAL ENERGY:    -57.33 kcal/mol
+ BINDING ENERGY:  -31.45 kcal/mol
+ PACKING ENERGY:  -25.87 kcal/mol
+
+____________________________________________________________________________________________________
+
+ AMINO ACIDS:
+
+ for all mutable positions
+
+   Position | Amino acid
+   ---------------------
+    A_44         THR
+    B_88         THR
+
+____________________________________________________________________________________________________
+
+LIGAND INTERACTION SCORES 
+
+SELF ENERGIES 
+(Internal and interactions between ligand and fixed scaffold part)
+
+
+             |  Scaled ||     Sum |   gauss1 |   gauss2 | repulsion | hydrophobic | non_dir_h_bond | num_tors_div
+   -----------------------------------------------------------------------------------------------------------------
+               -28.5635    -5.7127    -1.7658    -3.9636      0.8456       -0.8289          -0.0000         0.0000   
+
+PAIRWISE ENERGIES 
+(Interactions between ligand and the flexible sidechains)
+
+  Position | Energies [kcal/mol]
+           |  Scaled ||     Sum | gauss1   | gauss2   | repulsion | hydrophobic | non_dir_h_bond | num_tors_div
+  ---------------------------------------------------------------------------------------------------------------
+  A_44:THR    -1.3130    -0.2626    -0.1139    -0.0905      0.0000       -0.0582          -0.0000         0.0000   
+  B_84:ARG    -1.9540    -0.3908    -0.0626    -0.2976      0.0000       -0.0306          -0.0000         0.0000   
+  B_88:THR     0.3765     0.0753    -0.1497    -0.1287      0.3811       -0.0274          -0.0000         0.0000   
+
+      Total   -2.8905    -0.5781    -0.3262    -0.5168      0.3811       -0.1162           0.0000         0.0000
+
+
+____________________________________________________________________________________________________
+
+PROTEIN INTERACTION SCORES 
+
+ SELF ENERGIES
+ (Internal and interactions between flexible sidechains and fixed scaffold part)
+
+  Position | Energies [kcal/mol]
+           |   Scaled  ||       Sum |      Vdw |     Elec
+  ----------------------------------------------------------
+   A_44:THR     -7.3243      -7.3243    -5.6533    -1.6710   
+   B_84:ARG    -15.7867     -15.7867    -7.4465    -8.3402   
+   B_88:THR     -2.7192      -2.7192    -2.3146    -0.4046   
+
+         Total  -25.8302   -25.8302   -15.4144   -10.4158
+
+ PAIRWISE ENERGIES
+ (Interactions between flexible sidechains)
+
+  Position 1 | Position 2 | Energies [kcal/mol]
+           |          |   Scaled ||      Sum   |      Vdw |     Elec
+  --------------------------------------------------------------------
+  A_44:THR   B_84:ARG   -0.0561      -0.0561      -0.3590     0.3029 
+  A_44:THR   B_88:THR   -0.0041      -0.0041      -0.0266     0.0225 
+  B_84:ARG   B_88:THR    0.0193       0.0193      -0.1840     0.2033 
+
+                Total   -0.0409    -0.0409    -0.5696     0.5287

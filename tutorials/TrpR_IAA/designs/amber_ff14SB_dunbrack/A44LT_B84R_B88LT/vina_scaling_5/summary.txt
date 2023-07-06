@@ -1,0 +1,16 @@
+
+  SUMMARY OF DESIGN SOLUTIONS
+
+  SOLUTION | RESIDUES    | ENERGIES [kcal/mol] 
+           | A_44 | B_88 |   Total   |   Binding   |  Packing 
+  -----------------------------------------------------------
+       0     THR    THR    -60.04       -35.07       -24.97    
+       1     THR    THR    -59.87       -34.90       -24.97    
+       2     THR    LEU    -59.15       -29.55       -29.60    
+       3     LEU    THR    -59.08       -31.78       -27.30    
+       4     THR    THR    -58.81       -34.52       -24.30    
+       5     THR    THR    -58.16       -31.85       -26.30    
+       6     THR    THR    -57.72       -33.90       -23.82    
+       7     LEU    THR    -57.70       -31.41       -26.29    
+       8     THR    THR    -57.33       -31.45       -25.87    
+       9     THR    THR    -57.29       -31.54       -25.75    

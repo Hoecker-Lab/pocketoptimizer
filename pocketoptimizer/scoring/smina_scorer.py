@@ -225,9 +225,9 @@ class SminaScorer(Storer):
         # Score ligand against fixed scaffold
         lig_scaffold_outfile = os.path.join(self.lig_scaff, 'ligand.csv')
         if os.path.isfile(lig_scaffold_outfile):
-            logger.info(f'Ligand-Scaffold/Self interaction energy already computed.')
+            logger.info(f'Ligand-Scaffold interaction energy already computed.')
         else:
-            logger.info(f'Ligand-Scaffold/Self interaction energy not computed yet.')
+            logger.info(f'Ligand-Scaffold interaction energy not computed yet.')
             logger.info('Prepare fixed scaffold.')
             self.prepare_scaffold()
             with tqdm(total=1, desc='Ligand/Scaffold') as pbar:
@@ -236,14 +236,11 @@ class SminaScorer(Storer):
                                              nposes=nposes)
                 pbar.update()
 
-            # Save data as csv
-            energy_terms = self.terms
-
             write_energies(outpath=lig_scaffold_outfile,
-                               energies=self_nrgs,
-                               energy_terms=energy_terms,
-                               name_a='ligand_pose',
-                               nconfs_a=nposes)
+                           energies=self_nrgs,
+                           energy_terms=self.terms,
+                           name_a='ligand_pose',
+                           nconfs_a=nposes)
 
         # Set the torsion weight factor to 0, in order not to count it for every pairwise interaction
         self.smina_weights['ad4_scoring']['num_tors_add'] = 0.0

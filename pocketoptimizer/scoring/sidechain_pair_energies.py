@@ -61,7 +61,7 @@ class SidechainPairScorer(Storer):
         struc.set('coords', res_a_coords[:, :, ids[0]], f'chain {chain_a} and resid {resid_a}')
         struc.set('coords', res_b_coords[:, :, ids[1]], f'chain {chain_b} and resid {resid_b}')
         energies = ffev.calculateEnergies(struc.coords)
-        return np.array([energies['vdw'], energies['elec']])
+        return np.array([energies['vdw'], energies['elec'] * 0.1])
 
     def calculate_pairs(self) -> NoReturn:
         """
