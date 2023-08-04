@@ -124,21 +124,19 @@ class MutationProcessor:
         for mutation in self.mutations:
             chain = str(mutation['chain'])
             resid = str(mutation['resid'])
-            segid = self.structure.get("segid", sel=f"chain {chain} and resid {resid} and name CA")
-            # Check whether there is a C alpha atom belonging to the chain residue identifier combination
-            index = self.structure.get('index', f'chain {chain} and resid {resid} and name CA')
-            cystine = self.structure.get('resname', sel=f'chain {chain} and resid {resid} and name CA') == 'CYX'
+            resname = self.structure.get('resname', sel=f'chain {chain} and resid {resid} and name CA')[0]
+            segid = self.structure.get("segid", sel=f"chain {chain} and resid {resid} and name CA")[0]
 
-            if not len(index):
+            if not resname:
                 logger.error(f'Position: {chain}_{resid} is not in the protein.')
                 raise RuntimeError(f'Position: {chain}_{resid} is not in the protein.')
-            elif cystine:
+            elif resname == 'CYX':
                 logger.warning(f'Position: {chain}_{resid} was removed because it is involved in a disulfide bond.')
                 continue
-            elif check_termini and int(resid) == min(self.structure.get('resid', sel=f'segid {segid[0]}')):
-                logger.info(f'Position: {chain}_{resid} is the N-terminus of segment: {segid[0]}.')
-            elif check_termini and int(resid) == max(self.structure.get('resid', sel=f'segid {segid[0]}')):
-                logger.info(f'Position: {chain}_{resid} is the C-terminus of segment: {segid[0]}.')
+            elif check_termini and int(resid) == min(self.structure.get('resid', sel=f'segid {segid}')):
+                logger.info(f'Position: {chain}_{resid} is the N-terminus of segment: {segid}.')
+            elif check_termini and int(resid) == max(self.structure.get('resid', sel=f'segid {segid}')):
+                logger.info(f'Position: {chain}_{resid} is the C-terminus of segment: {segid}.')
             else:
                 updated_mutations.append(mutation)
 
