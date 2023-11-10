@@ -4,7 +4,7 @@ PocketOptimizer - A Python Library for Protein-Ligand Binding Design
 PocketOptimizer is a framework that offers experimentation with different scoring functions in
 protein-ligand binding design.
 
-- **API** -- Python 3.9 and workflow interface
+- **API** -- Python 3 and workflow interface
 - **Minimization** -- GPU based minimization through `OpenMM <https://openmm.org/>`_
 - **Force Fields** -- `Amber ff14SB <https://pubs.acs.org/doi/10.1021/acs.jctc.5b00255>`_ and `CHARMM36 <https://pubmed.ncbi.nlm.nih.gov/23832629/>`_
 - **Scoring Functions** -- Binding interaction scoring with `Smina <https://github.com/mwojcikowski/smina>`_ (empirical) or `FFEvaluate <https://software.acellera.com/htmd/tutorials/FFEvaluate.html>`_ (physics-based)
@@ -48,16 +48,6 @@ This means that it can be incorporated in your regular Python scripts or in an i
 The former is useful for automatized pipelines while the latter is helpful for going through every step separately.
 Jupyter is already part of the ``pocketoptimizer`` environment and does not need be installed.
 Jupyter can be opened in two different ways:
-
-* `Jupyter-Lab <https://jupyterlab.readthedocs.io/en/stable/>`_: the newest framework.
-   Includes several functionalities such as file previews and table formatting and access to Jupyter Notebooks and consoles.
-   It can be opened by typing jupyter-lab in the command line.
-* `Jupyter-Notebook <https://jupyter-notebook.readthedocs.io/en/stable/>`_: the older version.
-   Has only access to the notebook functionality, but is more stable and tested.
-   It can be opened by typing jupyter-notebook in the command line.
-
-Both can be used in the same way to write Python scripts.
-By typing either of the commands in the commandline a local server is opened in your browser.
 
 ``jupyter-lab``
 
@@ -243,7 +233,7 @@ notebook and type the following:
     design.prepare_protein(
         protein_structure='scaffold/YOUR_PROTEIN.pdb',  # Input PDB
         keep_chains=['A', 'B'],  # Specific protein chain to keep
-        backbone_restraint=True, #  Restrains the backbone during the minimization
+        backbone_restraint=True, # Restrains the backbone during the minimization
         cuda=False,              # Performs minimization on CPU instead of GPU
         discard_mols=[]          # Special molecules to exclude. Per default everything, but peptides have to be defined manually
         )
@@ -357,9 +347,7 @@ To model your ligands flexibility correctly, a .pdb file containing ligand confo
          └── conformers
              └── ligand_confs.pdb
 
-Several tools are available like `RDKits <https://www.rdkit.org/docs/GettingStartedInPython.html>`_ or
-`Obabels <https://open-babel.readthedocs.io/en/latest/3DStructureGen/multipleconformers.html>`_ conformer sampling
-procedures. PocketOptimizer has an interface for the latter:
+PocketOptimizer has an interface for `Obabels <https://open-babel.readthedocs.io/en/latest/3DStructureGen/multipleconformers.html>`_ conformer sampling:
 
 .. code-block:: python
 
@@ -378,8 +366,6 @@ the ``confab`` procedure as implemented in Obabel. The ``genetic`` algorithm der
 at an optimal solution either based on RMSD or energy diversity after a series of generations.
 The ``confab`` method systematically generates conformers based on a set of allowed torsion angles
 for every rotatable bond and prunes out conformers based on an energy threshold and RMSD diversity.
-
-Another option would be to use external services like Frog or `Frog2 <https://bioserv.rpbs.univ-paris-diderot.fr/services/Frog2/>`_ to generate conformers.
 
 3.2 Create Ligand Poses
 ***********************
@@ -437,16 +423,14 @@ Side chain rotamers can be sampled with the following method based on the fixed 
     design.sample_sidechain_rotamers(
         vdw_filter_thresh=100,         # Energy threshold of 100 kcal/mol for filtering rotamers
         library='dunbrack',            # Use dunbrack rotamer library (Should be used!)
-        dunbrack_filter_thresh=0.001,  # Probability threshold for filtering rotamers (0.1%)
-        accurate=False,                # Increases the number of rotamers sampled when using dunbrack (Be careful about the computation time!)
-        include_native=True            # Include the native rotamers from the minimized structure
+        dunbrack_filter_thresh=0.01    # Probability threshold for filtering rotamers (1%)
         )
 
 This procedures will use the design mutations that were set in the previous step and a defined van
 der Waals energy threshold to prune rotamers that clash with the protein scaffold.
 The default value is 100 kcal/mol. This pruning procedures are
 also performed in your defined sampling scaffold (glycine), where all other design positions are
-mutated to the amino acid glycine. Furthermore, the possibility exists to include the initial rotamer at a design position.
+mutated to the amino acid glycine.
 
 Additionally, a rotamer library can be selected.
 Options are either the original PocketOptimizer rotamer library ``CMLib`` or the backbone dependent
@@ -454,7 +438,6 @@ Options are either the original PocketOptimizer rotamer library ``CMLib`` or the
 When using the Dunbrack rotamer library a filter threshold can be defined which allows
 to filter out all rotamers that have a probability of occuring of less than the defined threshold.
 Accordingly, the threshold should be between 0 and 1 and allows to reduce the amount of sampled rotamers.
-In addition, certain chi angles can be expanded by +/- 2 Std to increase the number of possible rotamers, when using Dunbrack.
 
 All accepted rotamers are contained in .pdb files and their energies are contained in .csv files under:
 
@@ -569,25 +552,6 @@ design position together with the frequency of mutations at these positions.
 **Note**: It is important to take a look at the energies contained in the .txt/.html and
 also to inspect the final output structures.
 
-5.1 Further Options
-*******************
-
-
-5.1.2 Multiple Designs
-++++++++++++++++++++++
-
-Furthermore, to test multiple scalings you can use the design_multi function:
-
-.. code-block:: python
-
-
-    design.design_multi([{'num_solutions': 10, 'ligand_scaling':100},
-                         {'num_solutions': 10, 'ligand_scaling':50},
-                         {'num_solutions': 10, 'ligand_scaling':20}])
-
-**Hint**: You can always exclude certain mutations from the design by removing them from the set mutations without loosing the already calculated
-energies.
-
 5.2 Cleaning the working directory
 **********************************
 
@@ -613,11 +577,11 @@ By running the python script: ui.py, you can also access the command line interf
 
 .. code-block:: bash
 
-    usage: ui.py [-h] [-ff FORCEFIELD] -r RECEPTOR -l LIGAND [--ph PH] [--keep_chains [KEEP_CHAINS ...]] [--min_bb] [--discard_mols [DISCARD_MOLS ...]] --mutations MUTATIONS [MUTATIONS ...] [--vdw_thresh VDW_THRESH] [--library LIBRARY]
-                 [--dunbrack_filter_thresh DUNBRACK_FILTER_THRESH] [--accurate] [--include_native] [--nconfs NCONFS] [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS] [--max_poses MAX_POSES] [--sampling_pocket SAMPLING_POCKET]
-                 [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--cuda] [--clean CLEAN]
+    usage: ui.py [-h] [-ff FORCEFIELD] -r RECEPTOR -l LIGAND [--ph PH] --mutations MUTATIONS [MUTATIONS ...] [--vdw_thresh VDW_THRESH] [--library LIBRARY]
+                 [--nconfs NCONFS] [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS] [--max_poses MAX_POSES]
+                 [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--cuda] [--clean]
 
-    PocketOptimizer computational protein design pipeline CLI, for more options use API.
+    PocketOptimizer CLI, for more options use API.
 
     optional arguments:
       -h, --help            show this help message and exit
@@ -628,20 +592,11 @@ By running the python script: ui.py, you can also access the command line interf
       -l LIGAND, --ligand LIGAND
                             Ligand input structure file
       --ph PH               ph value for side chain and ligand protonation
-      --keep_chains [KEEP_CHAINS ...]
-                            Chains to keep by their chain identifiers
-      --min_bb              Whether to minimize the proteins backbone
-      --discard_mols [DISCARD_MOLS ...]
-                            Special molecules to exclude by their chain and residue identifier (A:1), per default everything, but peptides have to be defined manually
       --mutations MUTATIONS [MUTATIONS ...]
                             Mutations (A:1:ALA)
       --vdw_thresh VDW_THRESH
                             Energy threshold for rotamer and ligand pose sampling (kcal/mol)
       --library LIBRARY     Rotamer library, options are: dunbrack or cmlib
-      --dunbrack_filter_thresh DUNBRACK_FILTER_THRESH
-                            Filter threshold for dunbrack rotamer library (between 0 and 1), default: 0.01
-      --accurate            Sample additional rotamers
-      --include_native      Include native rotamer
       --nconfs NCONFS       Number of ligand conformers to sample, default: 50
       --rot ROT, --rot ROT  Maximum ligand rotation, default: 20°
       --rot_steps ROT_STEPS, --rot_steps ROT_STEPS
@@ -652,15 +607,13 @@ By running the python script: ui.py, you can also access the command line interf
                             Ligand translation steps, default 0.5 Å
       --max_poses MAX_POSES, --max_poses MAX_POSES
                             Maximum number of ligand poses to sample, default: 10000
-      --sampling_pocket SAMPLING_POCKET
-                            Sampling pocket for rotamer and ligand pose sampling, default: ALA
       --scoring SCORING     Scoring function, options are: vina, vinardo, ad4_scoring, amber_ff14SB or charmm36
       --scaling SCALING     Ligand scaling factor, default: 1
       --num_solutions NUM_SOLUTIONS
                             Number of design solutions to calculate, default 10
       --ncpus NCPUS         Number of CPUs for multiprocessing
       --cuda                Enabling cuda for GPU-based minimization
-      --clean CLEAN         Clean the working directory
+      --clean               Clean the working directory
 
 
 

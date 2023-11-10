@@ -115,7 +115,7 @@ class FFRotamerSampler(Storer):
         return rotamers
 
     @staticmethod
-    def expand_dunbrack(rotamers: Dict[str, List[Tuple[float]]], expand: List[str] = ['chi1', 'chi2'], accurate: bool = False) -> Dict[str, List[Tuple[float]]]:
+    def expand_dunbrack(rotamers: Dict[str, List[Tuple[float]]], expand: List[str] = ['chi1', 'chi2']) -> Dict[str, List[Tuple[float]]]:
         """
         Expands defined chi-angles by +/- 1 Std
 
@@ -125,8 +125,6 @@ class FFRotamerSampler(Storer):
             Dictionaries for rotamers containing chi angles and standard deviations
         expand: list
             List of which chi angles to expand, [default: ['chi1', 'chi2']]
-        accurate: bool
-            Whether to expand chi-angles additionally by +/- 0.5 std
 
         Returns
         -------
@@ -144,9 +142,6 @@ class FFRotamerSampler(Storer):
                     rotamer_chi_angles[i].append([chi_angle - 1 * rotamers['std'][i][j],
                                                   chi_angle,
                                                   chi_angle + 1 * rotamers['std'][i][j]])
-                    if accurate:
-                        rotamer_chi_angles[i][j].extend([chi_angle - 0.5 * rotamers['std'][i][j],
-                                                         chi_angle + 0.5 * rotamers['std'][i][j]])
                 else:
                     rotamer_chi_angles[i].append([chi_angle])
 
@@ -163,7 +158,7 @@ class FFRotamerSampler(Storer):
         return rotamers_expand
 
     def calculate_energy(self, rot_id: int, structure: Molecule, ffev: FFEvaluate,
-                      res_coords: np.ndarray, resname: str, resid: str, chain: str) -> np.float:
+                      res_coords: np.ndarray, resname: str, resid: str, chain: str) -> float:
         """
         Calculates vdw energy of a rotamer
 
@@ -230,25 +225,18 @@ class FFRotamerSampler(Storer):
                         merged_rot_file.write(line)
             merged_rot_file.write('END')
 
-    def rotamer_sampling(self, vdw_filter_thresh: float = 100.0, dunbrack_prob: float = -1, include_native: bool = False,
-                         expand: List[str] = ['chi1', 'chi2'], accurate: bool = False, _keep_tmp: bool = False) -> NoReturn:
+    def rotamer_sampling(self, vdw_filter_thresh: float = 100.0, dunbrack_prob: float = 0.01,
+                         expand: List[str] = ['chi1', 'chi2']) -> NoReturn:
         """
         Parameters
         ----------
         vdw_filter_thresh: float
-            Energy filtering threshold to avoid clashes. [default: 100 kcal/mol]
+            Energy filtering threshold to avoid clashes [default: 100 kcal/mol]
         dunbrack_prob: float
             Filter threshold, rotamers having probability of occurence lower than filter threshold will
-            be pruned if their rotameric mode does occur more than once
-            (-1: no pruning, 1: pruning of all rotamers with duplicate rotamer modes) [default: -1]
-        include_native: bool
-            Whether to include native rotamer [default: False]
+            be pruned if their rotameric mode does occur more than once [default: 0.01]
         expand: list
             List of chi angles to expand [default: ['chi1', 'chi2']]
-        accurate: bool
-            Whether to expand chi-angles additionally by +/- 0.5 std
-        _keep_tmp: bool
-            If the tmp directory should be deleted or not. Useful for debugging. [default: False]
         """
         from pocketoptimizer.utility.utils import MutationProcessor, load_ff_parameters, write_energies, calculate_chunks
 
@@ -256,7 +244,6 @@ class FFRotamerSampler(Storer):
 
         self.tmp_dir = tf.mkdtemp(dir=self.tmp_dir, prefix='calculateRotamers_')
         os.chdir(self.tmp_dir)
-        logger.info(f"Using {self.ncpus} CPU's for multiprocessing.")
 
         mutation_processor = MutationProcessor(structure=self.built_scaffold,
                                                mutations=self.mutations,
@@ -323,8 +310,7 @@ class FFRotamerSampler(Storer):
                                                     prob_cutoff=dunbrack_prob)
 
                             rotamers = self.expand_dunbrack(rotamers=rotamers,
-                                                            expand=expand,
-                                                            accurate=accurate)
+                                                            expand=expand)
 
                     else:
                         logger.error(f'Library: {self.library} not implemented.')
@@ -348,8 +334,7 @@ class FFRotamerSampler(Storer):
                         # append rotameric states as frames to residue
                         residue.appendFrames(current_rot)
 
-                    if not include_native:
-                        residue.dropFrames(drop=0)
+                    residue.dropFrames(drop=0)
 
                 nrots = residue.coords.shape[-1]
 
@@ -385,7 +370,7 @@ class FFRotamerSampler(Storer):
 
                 self.merge_rotamers(rot_ids=val_ids, resname=resname, resid=resid, chain=chain, outfile=outfile)
 
-        if not _keep_tmp:
-            if os.path.isdir(self.tmp_dir):
-                shutil.rmtree(self.tmp_dir)
+        if os.path.isdir(self.tmp_dir):
+            shutil.rmtree(self.tmp_dir)
+
         logger.info('Rotamer sampling procedure is finished.')

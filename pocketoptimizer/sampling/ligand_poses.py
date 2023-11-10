@@ -244,7 +244,7 @@ class PoseSampler(Storer):
 
         return np.array(sampled_poses).transpose(1, 2, 0)
 
-    def filter_clashes(self, pose_id: int, pose_coords: np.ndarray, struc: Molecule, ffev: FFEvaluate) -> np.float:
+    def filter_clashes(self, pose_id: int, pose_coords: np.ndarray, struc: Molecule, ffev: FFEvaluate) -> float:
         """Calculation and filtering procedure.
 
         Calculates the vdw energy of a ligand pose
@@ -381,7 +381,7 @@ class PoseSampler(Storer):
         """
         poses = []
         logger.info('Generate possible poses within the defined grid.')
-        for conf in tqdm(range(mol.coords.shape[-1]), desc='Ligand Conformers'):
+        for conf in tqdm(range(mol.coords.shape[-1]), desc='Ligand Conformer(s)'):
             coords = mol.coords[:, :, conf]
             mol_center = np.mean(coords, axis=0)
             poses.append(self.sample_poses(
@@ -447,8 +447,6 @@ class PoseSampler(Storer):
 
         try:
             ligand_confs = Molecule(self.ligand_conformers)
-            native_conf = np.expand_dims(struc.get('coords', sel='segid L'), axis=2)
-            ligand_confs.coords = np.dstack((ligand_confs.coords, native_conf))
         except (IndexError, FileNotFoundError):
             # If ligand confs doesn't exist or doesn't contain conformers
             logger.error(f'{self.ligand_conformers} does not exist or does not contain conformers.')
@@ -474,13 +472,13 @@ class PoseSampler(Storer):
         logger.info(f'Created possible {nposes} poses.')
 
         logger.info('Start filtering poses.')
-        logger.info(f'Using {self.ncpus} CPUs for multiprocessing.')
+        logger.info(f'Using {self.ncpus} CPU(s) for multiprocessing.')
 
         ffev = FFEvaluate(struc, prm)
         chunksize = calculate_chunks(nposes=nposes, ncpus=self.ncpus)
 
         energies = np.ndarray(nposes)
-        with tqdm(total=nposes, desc='Filter Poses') as pbar:
+        with tqdm(total=nposes, desc='Filter Pose(s)') as pbar:
             with mp.Pool(processes=self.ncpus) as pool:
                     for pose_id, energy in enumerate(pool.imap(
                             partial(self.filter_clashes,
@@ -492,7 +490,7 @@ class PoseSampler(Storer):
                         pbar.update()
 
         val_ids = [val_id[0] for val_id in np.argwhere(energies <= min(energies) + vdw_filter_thresh)]
-        logger.info(f'Calculated {len(val_ids)} poses within energy threshold of {str(vdw_filter_thresh)} kcal/mol.')
+        logger.info(f'Calculated {len(val_ids)} pose(s) within energy threshold of {str(vdw_filter_thresh)} kcal/mol.')
 
         write_energies(outpath=os.path.join(os.path.dirname(self.ligand_poses_pdb), 'ligand_poses.csv'),
                        energies=energies,

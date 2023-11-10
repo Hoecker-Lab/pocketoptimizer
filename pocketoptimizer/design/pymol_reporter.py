@@ -28,6 +28,10 @@ class PymolReporter:
         self._sidechain_positions = natsorted(sidechain_positions)
         self._solutions = design_solutions
         self._output_dir = output_dir
+        if not self._solutions.peptide:
+            self._lig_ftype = 'mol2'
+        else:
+            self._lig_ftype = 'pdb'
 
     def create_solution_script(self, solution_index: int, scaffold_pdb: str, wt_ligand: str = None, waters: Dict[str, str] = None,
                                metals: List[List[Union[str, float]]] = None, cofactors=None) -> NoReturn:
@@ -73,7 +77,7 @@ class PymolReporter:
         commands = [
             'bg_color white',
             'load ' + outdir + os.sep + 'receptor.pdb, design',
-            'load ' + outdir + os.sep + f'ligand.mol2, ligand',
+            'load ' + outdir + os.sep + f'ligand.{self._lig_ftype}, ligand',
             'load ' + os.path.abspath(scaffold_pdb) + ', WT_scaffold',
             'hide lines',
             'cartoon loop',
@@ -223,7 +227,7 @@ class PymolReporter:
         for sol_i in range(self._solutions.get_solution_number()):
             dir_i = os.path.join(outdir, str(sol_i))
             commands += [
-                f'load %s%sligand.mol2, ligand_poses' % (dir_i, os.sep),
+                f'load %s%sligand.{self._lig_ftype}, ligand_poses' % (dir_i, os.sep),
                 'load %s%sreceptor.pdb, designs' % (dir_i, os.sep)]
         if waters:
             s_create = 'create wt_waters, '

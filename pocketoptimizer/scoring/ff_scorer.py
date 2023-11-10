@@ -56,7 +56,7 @@ class LigandScorer(Storer):
         # set coordinates to current ligand pose
         struc.set('coords', pose_coords[..., ids[0]], 'segid L')
         energies = ffev.calculateEnergies(struc.coords)
-        return np.array([energies['vdw'], energies['elec'] * 0.1])
+        return np.array([energies['vdw'], energies['elec'] * 0.01])
 
     def run_self_nrg(self, pose_coords: np.ndarray, nposes: int) -> NoReturn:
         """
@@ -210,10 +210,10 @@ class LigandScorer(Storer):
         nposes = pose_coords.shape[-1]
 
         if os.path.isfile(os.path.join(self.lig_scaff, 'ligand.csv')):
-            logger.info(f'Ligand-Scaffold/Self interaction energy already computed.')
+            logger.info(f'Ligand-Scaffold interaction energy already computed.')
 
         else:
-            logger.info(f'Ligand-Scaffold/Self interaction energy not computed yet.')
+            logger.info(f'Ligand-Scaffold interaction energy not computed yet.')
             self.run_self_nrg(pose_coords=pose_coords, nposes=nposes)
 
         self.run_pair_nrg(pose_coords=pose_coords, nposes=nposes)

@@ -29,6 +29,7 @@ class Storer:
 
         """
         self.work_dir = design_pipeline.work_dir
+        self.peptide = design_pipeline.peptide
         self.ph = design_pipeline.ph
         self.temperature = design_pipeline.temperature
         self.mutations = design_pipeline.mutations
@@ -36,8 +37,9 @@ class Storer:
         self.scorer = design_pipeline.scorer
         self.library = design_pipeline.library
         self.rotamer_path = design_pipeline.rotamer_path
-        self.built_scaffold = design_pipeline.built_scaffold
         self.prepared_protein = design_pipeline.prepared_protein
+        self.built_scaffold = design_pipeline.built_scaffold
+        self.build_scaffold_params = design_pipeline.built_scaffold_params
         self.ligand_protonated = design_pipeline.ligand_protonated
         self.built_ligand_params = design_pipeline.built_ligand_params
         self.ligand_conformers = design_pipeline.ligand_conformers

@@ -110,6 +110,46 @@ class SystemBuilder(Storer):
         else:
             logger.info('Protein is already prepared.')
 
+    def prepare_peptide(self) -> NoReturn:
+        """
+        Peptide cleaning and protonation procedure using Moleculekit.
+        """
+        # check if protein is already prepared
+        if not os.path.isfile(self.ligand_protonated):
+            renumber = False
+            with open(self.structure, 'r') as origin_scaffold:
+                for line in origin_scaffold:
+                    if line.startswith('ATOM'):
+                        try:
+                            int(line[22:26])
+                        except ValueError:
+                            renumber = True
+                            break
+
+            peptide = Molecule(self.structure)
+
+            if renumber:
+                self.renumber_residues(prot=peptide)
+
+            # Adding hydrogens and protonating
+            logger.info(f'Protonate peptide according to pH: {self.ph}.')
+            prot_prep, prep_data = systemPrepare(peptide, pH=self.ph, return_details=True, _molkit_ff=False)
+
+            os.makedirs(os.path.split(self.ligand_protonated)[0], exist_ok=True)
+            prot_prep.set('chain', 'L')
+            prot_prep.set('segid', 'L')
+
+            prot_prep.write(self.ligand_protonated, type='pdb')
+            prep_data.to_excel(os.path.join(os.path.split(self.ligand_protonated)[0], 'report.xlsx'))
+
+            if not os.path.isfile(self.ligand_protonated):
+                logger.error('Peptide preparation failed.')
+                raise FileNotFoundError('Peptide preparation failed.')
+
+            logger.info('Successfully prepared peptide structure.')
+        else:
+            logger.info('Peptide is already prepared.')
+
     def renumber_residues(self, prot: Molecule):
         """
         Renumber residues incrementally to prevent problems with unusual residue numbering: 75A, 75B
@@ -183,7 +223,8 @@ class SystemBuilder(Storer):
         lig = Molecule(self.ligand_protonated)
         lig.set('segid', 'L')
         lig.set('chain', 'L')
-        lig.set('resname', 'MOL')
+        if not self.peptide:
+            lig.set('resname', 'MOL')
 
         # mutate non-standard residues to prevent errors in building
         for non_standard, standard in special2standard.items():
@@ -336,7 +377,7 @@ class SystemBuilder(Storer):
         # Create the output directories
         os.makedirs(outdir, exist_ok=True)
         # Load default force field parameters
-        if self.built_ligand_params:
+        if self.built_ligand_params and not self.peptide:
             topo, param = self.get_ff_params(lig_mol2=self.built_ligand_params['mol2'],
                                              lig_frcmod=self.built_ligand_params['frcmod'],
                                              lig_rtf=self.built_ligand_params['rtf'],
@@ -349,7 +390,7 @@ class SystemBuilder(Storer):
 
         if self.forcefield.startswith('amber'):
             for i in segids:
-                if i == 'L':
+                if i == 'L' and not self.peptide:
                     continue
                 caps[i] = ['none', 'none']
 
@@ -400,7 +441,7 @@ class SystemBuilder(Storer):
 
         elif self.forcefield.startswith('charmm'):
             for i in segids:
-                if i == 'L':
+                if i == 'L' and not self.peptide:
                     continue
                 caps[i] = ['first none', 'last none']
             bmol = charmm.build(
@@ -418,8 +459,13 @@ class SystemBuilder(Storer):
 
         bmol = autoSegment2(bmol, _logger=False)
 
-        bmol.set('segid', 'L', f'resname MOL')
-        bmol.set('chain', 'L', f'resname MOL')
+        if not self.peptide:
+            bmol.set('segid', 'L', f'resname MOL')
+            bmol.set('chain', 'L', f'resname MOL')
+        else:
+            lig_segid = bmol.get('segid')[-1]
+            bmol.set('chain', 'L', f'segid {lig_segid}')
+            bmol.set('segid', 'L', f'segid {lig_segid}')
 
         segids = list(filter(None, np.unique(bmol.segid)))
         for segid in segids:
@@ -468,7 +514,7 @@ class SystemBuilder(Storer):
             logger.error(f'Could not open: {self.structure}.')
             raise FileNotFoundError(f'Could not open: {self.structure}.')
 
-        ligand_mol2 = os.path.join(self.built_ligand_params['params_folder'], 'ligand.mol2')
+        ligand_mol2 = self.built_ligand_params['mol2'][0]
         ligand_pdb = os.path.join(self.built_ligand_params['params_folder'], 'ligand.pdb')
         os.makedirs(self.built_ligand_params['params_folder'], exist_ok=True)
         os.chdir(self.built_ligand_params['params_folder'])
@@ -679,3 +725,6 @@ class SystemBuilder(Storer):
         logger.info(f'RMSD between minimized and unminimized structure: {str(round(rmsd, 4))} Å.')
         structure.coords = prot_min.coords
         structure.write(self.built_scaffold, sel='not segid L')
+        # TODO: We only save minimized peptides since small molecule ligands are in mol2 format and different formating causes inconsistency problems
+        if self.peptide:
+            structure.write(self.ligand_protonated, sel='segid L')

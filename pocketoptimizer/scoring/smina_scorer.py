@@ -183,15 +183,10 @@ class SminaScorer(Storer):
         process = subprocess.run(score_command, capture_output=True)
         return self.parse_smina(process.stdout.decode('ascii'), nposes=nposes)
 
-    def run_smina_scorer(self, _keep_tmp: bool = False) -> NoReturn:
+    def run_smina_scorer(self) -> NoReturn:
         """
         Wrapper to run smina ligand protein interaction energy scoring
         Reading in ligand structure (ligand.mol2) and ligand poses from starting pose ligand_poses.pdb and ligand_poses.xtc trajectory
-
-        Parameters
-        ----------
-        _keep_tmp: bool
-            If False deleting the temporary directory afterwards [default: False]
         """
         from pocketoptimizer.utility.utils import write_energies
         logger.info(f'Score ligand interactions using {self.scorer}.')
@@ -228,7 +223,6 @@ class SminaScorer(Storer):
             logger.info(f'Ligand-Scaffold interaction energy already computed.')
         else:
             logger.info(f'Ligand-Scaffold interaction energy not computed yet.')
-            logger.info('Prepare fixed scaffold.')
             self.prepare_scaffold()
             with tqdm(total=1, desc='Ligand/Scaffold') as pbar:
                 self_nrgs = self.score_smina(receptor='pocketless.pdb',
@@ -246,7 +240,6 @@ class SminaScorer(Storer):
         self.smina_weights['ad4_scoring']['num_tors_add'] = 0.0
 
         # Score ligand against sidechains
-        # Loop over all mutations/flexible residues
         for position in self.mutations:
             chain, resid = position['chain'], position['resid']
             for resname in position['mutations']:
@@ -279,7 +272,6 @@ class SminaScorer(Storer):
                 # Create array (nposes * nrots * Number of energy terms)
                 pair_nrgs = np.zeros((nposes, nrots * nterms))
 
-                logger.info(f'Loop over rotamers of residue: {chain}_{resid}_{resname}.')
                 with tqdm(total=nrots, desc=f'Ligand/{chain}_{resid}_{resname}') as pbar:
                     for rot in np.arange(nrots):
                         res_pdb = f'{chain}_{resid}_{resname}_{rot}.pdb'
@@ -298,8 +290,7 @@ class SminaScorer(Storer):
                                name_b=resname,
                                nconfs_b=nrots)
 
-        if not _keep_tmp:
-            if os.path.isdir(self.tmp_dir):
-                shutil.rmtree(self.tmp_dir)
+        if os.path.isdir(self.tmp_dir):
+            shutil.rmtree(self.tmp_dir)
 
         logger.info('Ligand scoring was successful.')

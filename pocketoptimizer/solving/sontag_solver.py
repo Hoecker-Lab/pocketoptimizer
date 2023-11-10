@@ -51,8 +51,8 @@ def run_sontag_solver(sol: int, sontag_params: Dict[str, Union[str, int, float]]
     result_filename = 'res.txt'
 
     if not os.path.isfile(result_filename):
-        logger.error(f'Sontag solver failed with the following exception: {stderr.decode("ascii")}.')
-        raise RuntimeError(f'Sontag solver failed with the following exception: {stderr.decode("ascii")}.')
+        logger.error('Sontag solver failed, usually this happens if the system memory is not sufficient.')
+        raise RuntimeError('Sontag solver failed, usually this happens if the system memory is not sufficient.')
 
     copyfile(result_filename, os.path.join(output_dir, 'res{sol:0=2d}.txt'))
     with open(result_filename) as resfile:

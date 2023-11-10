@@ -12,6 +12,7 @@ dependencies:
   - htmd
   - smina
   - jupyterlab
+  - ipywidgets>=8.0.2
   - weblogo
   - ffevaluation
   - pip
