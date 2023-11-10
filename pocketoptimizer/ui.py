@@ -819,15 +819,18 @@ def main():
     parser.add_argument('--num_solutions', type=int, default=10, help='Number of design solutions to calculate, default 10', required=False)
     parser.add_argument('--ncpus', type=int, default=1, help='Number of CPUs for multiprocessing', required=False)
     parser.add_argument('--cuda', action='store_true', help='Enabling cuda for GPU-based minimization')
-    parser.add_argument('--clean', action='store_true', help='Clean the working directory', required=False)
-    args = parser.parse_args()
 
-    if args.clean:
-        design = pocketoptimizer.DesignPipeline(work_dir=working_dir, forcefield='amber_ff14SB')
-        design.clean(scaffold=True, ligand=True)
-        design.forcefield = 'charmm36'
-        design.clean(scaffold=True, ligand=True)
-        parser.exit() # exits the program with no more arg parsing and checking
+    # Custom class for cleaning the working directory
+    class CleanWorkDir(argparse.Action):
+        def __call__(self, parser, namespace, values, option_string):
+            design = pocketoptimizer.DesignPipeline(work_dir=working_dir, forcefield='amber_ff14SB')
+            design.clean(scaffold=True, ligand=True)
+            design.forcefield = 'charmm36'
+            design.clean(scaffold=True, ligand=True)
+            parser.exit() # exits the program with no more arg parsing and checking
+
+    parser.add_argument('--clean', nargs=0, action=CleanWorkDir, help='Clean the working directory', required=False)
+    args = parser.parse_args()
 
     mutations = []
     for mutation in args.mutations:
