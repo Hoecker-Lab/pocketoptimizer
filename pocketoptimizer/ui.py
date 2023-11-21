@@ -791,9 +791,9 @@ class DesignPipeline:
 def main():
     import sys
     import argparse
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
     import pathlib
+    # Get Path of code
+    sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
     # Get path of working directory
     working_dir = str(pathlib.Path().resolve())
 

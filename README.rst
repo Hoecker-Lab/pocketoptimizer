@@ -43,7 +43,7 @@ simple_env.yml instead.
 Running PocketOptimizer
 =======================
 
-Since PocketOptimizer's rework, the framework is now accessed solely through Python 3.9.
+Since PocketOptimizer's rework, the framework is now accessed solely through Python 3.
 This means that it can be incorporated in your regular Python scripts or in an interactive fashion through Jupyter Notebooks.
 The former is useful for automatized pipelines while the latter is helpful for going through every step separately.
 Jupyter is already part of the ``pocketoptimizer`` environment and does not need be installed.
