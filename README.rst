@@ -202,13 +202,13 @@ PocketOptimizer offers a python interface utilizing these tools to parameterize 
     )
 
 This creates a ``ligand.mol2`` structure file and additionally either a ``ligand.frcmod`` or ``ligand.prm``/``ligand.rtf`` parameter files in the ``ligand``
-directory under ``FORCE_FIELD/params``. Before you proceed, take a look at those files if the structure is correct protonated and suits your needs.
+directory under ``FORCEFIELD/params``. Before you proceed, take a look at those files if the structure is correct protonated and suits your needs.
 
 ::
 
    ligand
    ├── ligand_structure.mol2
-   └── FORCE_FIELD
+   └── FORCEFIELD
        ├── ligand.mol2
        └── params
            └── ligand.mol2/ligand.frcmod or ligand.prm/ligand.rtf
@@ -246,20 +246,20 @@ The following files are created after this step:
 ::
 
     scaffold
-    └── FORCE_FIELD
+    └── FORCEFIELD
         ├── protein_preparation
         │   ├── prepared_scaffold.pdb
         │   └── scaffold_report.xlsx
         ├── protein_params
         └── scaffold.pdb
 
-In the scaffold folder a ``FORCE_FIELD`` sub-folder is created named after the respective
+In the scaffold folder a ``FORCEFIELD`` sub-folder is created named after the respective
 force field that was set in the beginning of the design process. Within this folder, a
 ``protein_preparation`` sub-folder is created, which contains the cleaned and protonated protein structure.
 A scaffold report in form of an excel spreadsheet is also created within this folder that
 contains information about the modified residues (like protonation states or filled-in missing atoms (hydrogen atoms)).
 
-A ``protein_params`` sub-folder is created within the ``FORCE_FIELD`` sub-folder that contains force field parameters and energy
+A ``protein_params`` sub-folder is created within the ``FORCEFIELD`` sub-folder that contains force field parameters and energy
 functions describing the protein, which can be used to calculate various interaction-energies.
 
 2.2 Choose your design positions
@@ -270,7 +270,7 @@ Next you can start taking a look at the resulting structure in:
 ::
 
     scaffold
-    └── FORCE_FIELD
+    └── FORCEFIELD
         └── scaffold.pdb
 
 
@@ -343,7 +343,7 @@ To model your ligands flexibility correctly, a .pdb file containing ligand confo
 ::
 
      ligand
-     └── FORCE_FIELD
+     └── FORCEFIELD
          └── conformers
              └── ligand_confs.pdb
 
@@ -405,7 +405,7 @@ and ``ligand_poses.xtc``. Furthermore, their energies can be inspected in ``liga
 ::
 
      ligand
-     └── FORCE_FIELD
+     └── FORCEFIELD
          └── poses
              ├── ligand_poses.pdb
              ├── ligand_poses.xtc
@@ -444,7 +444,7 @@ All accepted rotamers are contained in .pdb files and their energies are contain
 ::
 
     scaffold
-    └── FORCE_FIELD
+    └── FORCEFIELD
         ├── scaffold.pdb
         └── rotamers
             └──  LIBRARY
@@ -483,13 +483,13 @@ All energies are contained in .csv files under:
     ├── designs
     ├── energies
     │   └── FORCEFIELD_LIBRARY
-    │       ├── sidechain_scaffold_FORCE_FIELD
+    │       ├── sidechain_scaffold_FORCEFIELD
     │       │   └── RESIDUE.csv
-    │       ├── sidechain_sidechain_FORCE_FIELD
+    │       ├── sidechain_sidechain_FORCEFIELD
     │       │   └── RESIDUE_A_RESIDUE_B.csv
-    │       ├── ligand_scaffold_SCORING_METHOD
+    │       ├── ligand_scaffold_SCORING
     │       │   └── ligand.csv
-    │       └── ligand_sidechain_SCORING_METHOD
+    │       └── ligand_sidechain_SCORING
     │           └── ligand_RESIDUE_A.csv
     ├── ligand
     └── scaffold
@@ -523,9 +523,9 @@ which first prepares input files for the optimizer and then creates output
 
     project
     ├── designs
-    │   └── FORCE_FIELD_SAMPLING_LIBRARY
+    │   └── FORCEFIELD_SAMPLING_LIBRARY
     │       └── DESIGN_MUTATIONS
-    │           └── SCORING_METHOD_LIGAND_SCALING
+    │           └── SCORING_SCALING
     │               ├──  INDEX_DESIGN_SOLUTION
     │               │    ├── ligand.mol2
     │               │    ├── receptor.pdb

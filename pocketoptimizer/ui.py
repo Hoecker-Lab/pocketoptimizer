@@ -347,7 +347,8 @@ class DesignPipeline:
         
         Parameters
         ----------
-
+        positions: list
+            Residue positions in peptide for rotamer sampling
         vdw_filter_thresh: float
             Threshold value used to filter rotamers [default: 100.0 kcal/mol]
         """
@@ -849,13 +850,15 @@ def main():
                                             ncpus=args.ncpus)
     if not args.peptide:
         design.parameterize_ligand(input_ligand=args.ligand)
-        design.prepare_lig_conformers(nconfs=args.nconfs)
     else:
         design.prepare_peptide(peptide_structure=args.ligand)
 
     design.prepare_protein(protein_structure=args.receptor,
                            cuda=args.cuda)
-    if args.peptide:
+    if not args.peptide:
+        design.prepare_lig_conformers(nconfs=args.nconfs)
+
+    else:
         design.sample_peptide_conformers(positions=[resid for resid in args.flex_peptide_res],
                                          vdw_filter_thresh=args.vdw_thresh)
 

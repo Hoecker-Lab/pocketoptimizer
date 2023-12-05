@@ -177,7 +177,7 @@ def calculate_design_solutions(solver_bin: str, design_pipeline: DesignPipeline,
                      'obj_del_thr': 2e-4,
                      'int_gap_thr': 2e-5}
 
-    for sol in tqdm(range(num_solutions), desc='Solutions'):
+    for sol in tqdm(range(num_solutions), desc='Solution(s)'):
         run_sontag_solver(
             sol=sol,
             sontag_params=sontag_params,
