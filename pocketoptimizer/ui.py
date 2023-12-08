@@ -726,7 +726,7 @@ class DesignPipeline:
             ff: str
                 forcefield used
             """
-            dirs = ['scaffold', 'energies', 'solver', 'designs']
+            dirs = ['scaffold', 'energies', 'designs']
             paths = []
             if '..' in project_dir:
                 logger.error('.. is not allowed in project_names.')

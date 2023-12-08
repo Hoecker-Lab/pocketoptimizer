@@ -114,23 +114,6 @@ class TAG:
         """
         return self.to_string()
 
-    #    def __add__(self, other):
-    #        """Return a new instance : concatenation of self and another tag"""
-    #        res = TAG()
-    #        res.tag = self.tag
-    #        res.value = self.value
-    #        res.attrs = self.attrs
-    #        res.children = self.children
-    #        res.brothers = self.brothers + [other]
-    #        return res
-
-    #    def __radd__(self, other):
-    #        """Used to add a tag to a string"""
-    #        if isinstance(other, str):
-    #            return TEXT(other) + self
-    #        else:
-    #            raise ValueError, ("Can't concatenate %s and instance" %other)
-
     def __mul__(self, n: int) -> 'TAG':
         """
         Replicate self n times, with tag first : TAG * n
@@ -275,21 +258,6 @@ ONE_LINE = ['HTML', 'HEAD', 'BODY', 'FRAMESET',
             'SCRIPT', 'TABLE', 'TR', 'SELECT', 'OPTION',
             'FORM', 'THEAD', 'TBODY']
 
-
-# def Sum(iterable):
-#    """Return the concatenation of the instances in the iterable
-#    Can't use the built-in sum() on non-integers"""
-#    it = [ item for item in iterable ]
-#    if it:
-#        return reduce(lambda x, y:x+y, it)
-#    else:
-#        return ''
-
-# this works in principe, but pydev & pylint do not recognize the generated
-# classes and assume errors
-# create the classes
-# for tag in CLOSING_TAGS + NON_CLOSING_TAGS:
-#     exec("class %s(TAG): pass" %tag)
 
 class TEXT(TAG):
     pass
@@ -657,10 +625,3 @@ class META(TAG):
 
 class PARAM(TAG):
     pass
-
-# if __name__ == '__main__':
-#    head = HEAD(TITLE('Test document'))
-#    body = BODY()
-#    body <= H1('This is a test document')
-#    body <= 'First line' + BR() + 'Second line'
-#    print HTML(head + body)
