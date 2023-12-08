@@ -523,7 +523,7 @@ which first prepares input files for the optimizer and then creates output
 
     project
     ├── designs
-    │   └── FORCEFIELD_SAMPLING_LIBRARY
+    │   └── FORCEFIELD_LIBRARY
     │       └── DESIGN_MUTATIONS
     │           └── SCORING_SCALING
     │               ├──  INDEX_DESIGN_SOLUTION

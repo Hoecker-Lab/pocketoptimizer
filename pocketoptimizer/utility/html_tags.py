@@ -224,9 +224,8 @@ class TAG:
         """
         self.attrs.update(attrs)
 
-    # list of tags, from the HTML 4.01 specification
 
-
+# list of tags, from the HTML 4.01 specification
 CLOSING_TAGS = ['A', 'ABBR', 'ACRONYM', 'ADDRESS', 'APPLET',
                 'B', 'BDO', 'BIG', 'BLOCKQUOTE', 'BUTTON',
                 'CAPTION', 'CENTER', 'CITE', 'CODE',
