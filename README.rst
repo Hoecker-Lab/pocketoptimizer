@@ -221,12 +221,10 @@ as you are inside the project directory during the entire design process.
 
 Before the design process can start, the protein scaffold needs to be cleaned of ions, waters, small molecules (like natural ligands)
 and unnecessary protein chains. Furthermore, the protein scaffold needs to be protonated to a certain pH that was defined when
-initializing the design pipeline and it needs to be minimised. This is because experimentally solved protein structures commonly
-do not contain hydrogen atoms and often have clashes due to crystallographic model building.
+initializing the design pipeline and it needs to be minimised.
 PocketOpimizer has built in functionalities for this, utilizing the `HTMD <https://pubs.acs.org/doi/abs/10.1021/acs.jctc.6b00049>`_
 and `OpenMM <https://openmm.org/>`_ distribution. After you placed your protein of choice inside the ``PROJECT_NAME/scaffold/``
-directory, you can start to open a Python/IPython console or preferably a Jupyter
-notebook and type the following:
+directory, type the following:
 
 .. code-block:: python
 
@@ -238,9 +236,8 @@ notebook and type the following:
         discard_mols=[]          # Special molecules to exclude. Per default everything, but peptides have to be defined manually
         )
 
-This allows to minimize the structure with or without the backbone being constrained.
-Remember, this can also be a design choice you want to consider
-as the scaffold/backbone is the foundation of your design.
+**Note**: Please check your protein for any alternative residue numbering, such as: 110A and remove these
+
 The following files are created after this step:
 
 ::
