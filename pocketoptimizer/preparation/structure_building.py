@@ -48,28 +48,15 @@ class SystemBuilder(Storer):
 
         Parameters
         ----------
-        keep_chains: str
-            Protein chain that will be extracted.
+        keep_chains: list
+            Protein chains that will be extracted
         discard_mols: list
-            List of dictionaries containing chain and resid of the molecules to discard.
-            In the case of amino acid ligands, these have to be manually discarded with this option. [default: []]
+            List of special molecules to discard, in the following format {'chain': 'X', 'resid': 1}
         """
         # check if protein is already prepared
         if not os.path.isfile(self.prepared_protein):
-            renumber = False
-            with open(self.structure, 'r') as origin_scaffold:
-                for line in origin_scaffold:
-                    if line.startswith('ATOM'):
-                        try:
-                            int(line[22:26])
-                        except ValueError:
-                            renumber = True
-                            break
 
             prot = Molecule(self.structure)
-
-            if renumber:
-                self.renumber_residues(prot=prot)
 
             # Filter ligands, ions, waters out
             filter_str = f'protein'
@@ -116,20 +103,10 @@ class SystemBuilder(Storer):
         """
         # check if protein is already prepared
         if not os.path.isfile(self.ligand_protonated):
-            renumber = False
-            with open(self.structure, 'r') as origin_scaffold:
-                for line in origin_scaffold:
-                    if line.startswith('ATOM'):
-                        try:
-                            int(line[22:26])
-                        except ValueError:
-                            renumber = True
-                            break
 
             peptide = Molecule(self.structure)
 
-            if renumber:
-                self.renumber_residues(prot=peptide)
+            peptide.filter('protein', _logger=False)
 
             # Adding hydrogens and protonating
             logger.info(f'Protonate peptide according to pH: {self.ph}.')
@@ -150,24 +127,102 @@ class SystemBuilder(Storer):
         else:
             logger.info('Peptide is already prepared.')
 
-    def renumber_residues(self, prot: Molecule):
-        """
-        Renumber residues incrementally to prevent problems with unusual residue numbering: 75A, 75B
+    def parameterize_ligand(self, addHs: bool = True) -> NoReturn:
+        """ Ligand preparation procedure
+
+        Steps:
+        1. Add hydrogens with OpenBabel
+        2. Assign force field parameters and partial charges for GAFF2 with ANTECHAMBER
+        3. Generate .frcmod with PARMCHK2
+
+        Or:
+
+        2. Generate .prm/.rtf with MATCH-TYPER
 
         Parameters
-        ----------
-        prot: :class:moleculekit.moelcule.Molecule
-            Molecule object of the protein to be renumbered
+        ---------
 
+        addHs: bool
+            Whether to add hydrogen atoms [default: True]
         """
-        m = prot.renumberResidues(returnMapping=True)
-        outpath, file = os.path.split(self.structure)
-        file_name, file_extension = os.path.splitext(file)
-        prot.write(os.path.join(outpath, f'{file_name}_renumbered{file_extension}'))
-        m.to_csv(os.path.join(outpath, 'resid_map.csv'), index=False)
 
-        logger.error(f'Your PDB structure has unusual residue numbering, please use the renumbered structure: {os.path.join(outpath, f"{file_name}_renumbered{file_extension}")} and the numbering provided in: {os.path.join(outpath, "resid_map.csv")} instead.')
-        raise RuntimeError(f'Your PDB structure has unusual residue numbering, please use the renumbered structure: {os.path.join(outpath, f"{file_name}_renumbered{file_extension}")} and the numbering provided in: {os.path.join(outpath, "resid_map.csv")} instead.')
+        if not os.path.isfile(self.structure):
+            logger.error(f'Could not open: {self.structure}.')
+            raise FileNotFoundError(f'Could not open: {self.structure}.')
+
+        ligand_mol2 = self.built_ligand_params['mol2'][0]
+        ligand_pdb = os.path.join(self.built_ligand_params['params_folder'], 'ligand.pdb')
+        os.makedirs(self.built_ligand_params['params_folder'], exist_ok=True)
+        os.chdir(self.built_ligand_params['params_folder'])
+
+        # Remove all protons and convert to mol2
+        ligand = Molecule(self.structure)
+        if addHs:
+            ligand.remove('element H', _logger=False)
+        ligand.write(ligand_mol2)
+
+        if addHs:
+            # Protonate with Obabel
+            logger.info(f'Adding hydrogen atoms to the ligand according to pH: {self.ph}.')
+            protonate_command = [self.obabel, '-i', 'mol2', ligand_mol2, '-o', 'mol2', '-O', ligand_mol2, '--p', str(self.ph)]
+            process = subprocess.Popen(protonate_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = process.communicate()
+            if process.returncode != 0:
+                logger.error(f'Obabel failed with the following exception: {stderr.decode("ascii")}')
+                raise RuntimeError(f'Obabel failed with the following error: {stderr.decode("ascii")}')
+
+        # Calculate netcharge for parameterization
+        ligand = Molecule(ligand_mol2)
+        netcharge = str(round(np.sum(ligand.charge)))
+        ligand.write(ligand_pdb)
+
+        # Change the residue name to MOL, assign bond information and partial charges
+        conv_command = [self.antechamber, '-at', 'sybyl', '-c', 'gas', '-rn', 'MOL', '-nc', netcharge,
+                        '-i', ligand_pdb, '-o', ligand_mol2, '-fi', 'pdb', '-fo', 'mol2', '-j', '4']
+
+        process = subprocess.Popen(conv_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = process.communicate()
+        if process.returncode != 0:
+            logger.error(f'Antechamber failed with the following exception: {stderr.decode("ascii")}')
+            raise RuntimeError(f'Antechamber failed with the following error: {stderr.decode("ascii")}')
+
+        # Copy prepared ligand
+        shutil.copy(ligand_mol2, os.path.abspath(os.path.join('..', 'ligand.mol2')))
+
+        # Convert atomtypes to GAFF2 for AMBER
+        if self.forcefield.startswith('amber'):
+            ff = 'GAFF2'
+            logger.info(f'Parameterize ligand for {ff}.')
+            antechamber_command = [self.antechamber, '-at', 'gaff2', '-c', 'gas', '-rn', 'MOL', '-nc', netcharge,
+                                   '-fi', 'pdb', '-i', ligand_pdb, '-fo', 'mol2', '-o', ligand_mol2, '-j', '4']
+
+            process = subprocess.Popen(antechamber_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = process.communicate()
+            if process.returncode != 0:
+                logger.error(f'Antechamber failed with the following error: {stderr.decode("ascii")}')
+                raise RuntimeError(f'Antechamber failed with the following error: {stderr.decode("ascii")}')
+
+            # Create .frcmod file
+            parmchk2_command = [self.parmchk2, '-f', 'mol2', '-s', 'gaff2', '-i', ligand_mol2, '-o', 'ligand.frcmod']
+            process = subprocess.Popen(parmchk2_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = process.communicate()
+            if process.returncode != 0:
+                logger.error(f'Parmchk2 failed with the following error: {stderr.decode("ascii")}')
+                raise RuntimeError(f'Parmchk2 failed with the following error: {stderr.decode("ascii")}')
+
+        elif self.forcefield.startswith('charmm'):
+            ff = 'CGenFF_2b6'
+            logger.info(f'Parameterize ligand for {ff}.')
+            match_cmd = [self.match, '-forcefield', 'top_all36_cgenff_new', ligand_mol2]
+
+            process = subprocess.Popen(match_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            stdout, stderr = process.communicate()
+            if process.returncode != 0:
+                logger.error(f'Match-typer failed with the following error: {stderr.decode("ascii")}')
+                raise RuntimeError(f'Match-typer failed with the following error: {stderr.decode("ascii")}')
+
+        logger.info('Ligand parametrization was successful.')
+        os.chdir(self.work_dir)
 
     def get_ff_params(self, lig_mol2: List = [], lig_frcmod: List = [], lig_rtf: List = [], lig_prm: List = []) -> \
             Union[Union[amber.defaultTopo, amber.defaultParam], Union[charmm.defaultTopo, charmm.defaultParam]]:
@@ -490,134 +545,6 @@ class SystemBuilder(Storer):
                 m = structure.renumberResidues(returnMapping=True)
                 m.to_csv(os.path.join(outdir, 'resid_map.csv'), index=False)
         bmol.write(os.path.join(outdir, 'structure.pdb'))
-
-    def parameterize_ligand(self, addHs: bool = True) -> NoReturn:
-        """ Ligand preparation procedure
-
-        Steps:
-        1. Add hydrogens with OpenBabel
-        2. Assign force field parameters and partial charges for GAFF2 with ANTECHAMBER
-        3. Generate .frcmod with PARMCHK2
-
-        Or:
-
-        2. Generate .prm/.rtf with MATCH-TYPER
-
-        Parameters
-        ---------
-
-        addHs: bool
-            Whether to add hydrogen atoms [default: True]
-        """
-
-        if not os.path.isfile(self.structure):
-            logger.error(f'Could not open: {self.structure}.')
-            raise FileNotFoundError(f'Could not open: {self.structure}.')
-
-        ligand_mol2 = self.built_ligand_params['mol2'][0]
-        ligand_pdb = os.path.join(self.built_ligand_params['params_folder'], 'ligand.pdb')
-        os.makedirs(self.built_ligand_params['params_folder'], exist_ok=True)
-        os.chdir(self.built_ligand_params['params_folder'])
-
-        # Remove all protons and convert to mol2
-        ligand = Molecule(self.structure)
-        if addHs:
-            ligand.remove('element H', _logger=False)
-        ligand.write(ligand_mol2)
-
-        if addHs:
-            # Protonate with Obabel
-            logger.info(f'Adding hydrogen atoms to the ligand according to pH: {self.ph}.')
-            protonate_command = [self.obabel, '-i', 'mol2', ligand_mol2, '-o', 'mol2', '-O', ligand_mol2, '--p', str(self.ph)]
-            process = subprocess.Popen(protonate_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = process.communicate()
-            if process.returncode != 0:
-                logger.error(f'Obabel failed with the following exception: {stderr.decode("ascii")}')
-                raise RuntimeError(f'Obabel failed with the following error: {stderr.decode("ascii")}')
-
-        # Calculate netcharge for parameterization
-        ligand = Molecule(ligand_mol2)
-        netcharge = str(round(np.sum(ligand.charge)))
-        ligand.write(ligand_pdb)
-
-        # Change the residue name to MOL, assign bond information and partial charges
-        conv_command = [self.antechamber, '-at', 'sybyl', '-c', 'gas', '-rn', 'MOL', '-nc', netcharge,
-                        '-i', ligand_pdb, '-o', ligand_mol2, '-fi', 'pdb', '-fo', 'mol2', '-j', '4']
-
-        process = subprocess.Popen(conv_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = process.communicate()
-        if process.returncode != 0:
-            logger.error(f'Antechamber failed with the following exception: {stderr.decode("ascii")}')
-            raise RuntimeError(f'Antechamber failed with the following error: {stderr.decode("ascii")}')
-
-        # Copy prepared ligand
-        shutil.copy(ligand_mol2, os.path.abspath(os.path.join('..', 'ligand.mol2')))
-
-        # Convert atomtypes to GAFF2 for AMBER
-        if self.forcefield.startswith('amber'):
-            ff = 'GAFF2'
-            logger.info(f'Parameterize ligand for {ff}.')
-            antechamber_command = [
-                self.antechamber,
-                '-at',
-                'gaff2',
-                '-c',
-                'gas',
-                '-rn',
-                'MOL',
-                '-nc',
-                netcharge,
-                '-fi',
-                'pdb',
-                '-i',
-                ligand_pdb,
-                '-fo',
-                'mol2',
-                '-o',
-                ligand_mol2,
-                '-j',
-                '4']
-
-            process = subprocess.Popen(antechamber_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = process.communicate()
-            if process.returncode != 0:
-                logger.error(f'Antechamber failed with the following error: {stderr.decode("ascii")}')
-                raise RuntimeError(f'Antechamber failed with the following error: {stderr.decode("ascii")}')
-
-            # Create .frcmod file
-            parmchk2_command = [
-                self.parmchk2,
-                '-f',
-                'mol2',
-                '-s',
-                'gaff2',
-                '-i',
-                ligand_mol2,
-                '-o',
-                'ligand.frcmod']
-            process = subprocess.Popen(parmchk2_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = process.communicate()
-            if process.returncode != 0:
-                logger.error(f'Parmchk2 failed with the following error: {stderr.decode("ascii")}')
-                raise RuntimeError(f'Parmchk2 failed with the following error: {stderr.decode("ascii")}')
-
-        elif self.forcefield.startswith('charmm'):
-            ff = 'CGenFF_2b6'
-            logger.info(f'Parameterize ligand for {ff}.')
-            match_cmd = [
-                self.match,
-                '-forcefield',
-                'top_all36_cgenff_new',
-                ligand_mol2]
-
-            process = subprocess.Popen(match_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = process.communicate()
-            if process.returncode != 0:
-                logger.error(f'Match-typer failed with the following error: {stderr.decode("ascii")}')
-                raise RuntimeError(f'Match-typer failed with the following error: {stderr.decode("ascii")}')
-
-        logger.info('Ligand parametrization was successful.')
-        os.chdir(self.work_dir)
 
     def minimize_structure(self, structure_path: str, cuda: bool = False, restraint_bb: bool = True) -> NoReturn:
         """

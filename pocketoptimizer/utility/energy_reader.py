@@ -1,10 +1,10 @@
 import os
 import numpy as np
+from typing import NoReturn
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import pandas as pd
-from typing import NoReturn
 
 from pocketoptimizer.utility.utils import create_pairs, Storer
 from pocketoptimizer.utility.index_mapper import IndexMapper

@@ -245,7 +245,8 @@ class DesignPipeline:
         os.makedirs(self.built_ligand_params['params_folder'], exist_ok=True)
         system.prepare_peptide()
 
-    def prepare_protein(self, protein_structure: str, keep_chains: List = [], discard_mols: List[Dict[str, str]] = [], backbone_restraint: bool = True, cuda: bool = False) -> NoReturn:
+    def prepare_protein(self, protein_structure: str, keep_chains: List[str] = [], discard_mols: List[Dict[str, str]] = [],
+                        backbone_restraint: bool = True, cuda: bool = False) -> NoReturn:
         """
         Protonates and cleans the protein structure followed by a subsequent minimization step.
 
@@ -262,10 +263,9 @@ class DesignPipeline:
         protein_structure: str
             Path to the protein PDB file
         keep_chains: list
-            Protein chain which will be extracted for the design (['A', 'B'])
+            Special protein chains that will be extracted
         discard_mols: list
-            List of dictionaries containing chain and resid of the molecules to discard. In the case of amino acid ligands,
-            these have to be manually discarded with this option
+            List of special molecules to discard, in the following format {'chain': 'X', 'resid': 1}
         backbone_restraint: bool
             Restraints the backbone during minimization. [default: True]
         cuda: bool
@@ -338,8 +338,8 @@ class DesignPipeline:
                 obabel_path=self.obabel, infile=self.ligand_protonated, conf_file_name=self.ligand_conformers,
                 method=method, nconfs=nconfs, score=score, rcutoff=rcutoff, ecutoff=ecutoff)
         else:
-            logger.error('Conformer generation method not defined! Try genetic or confab.')
-            raise ValueError('Conformer generation method not defined! Try genetic or confab.')
+            logger.error('Conformer generation method not defined.')
+            raise ValueError('Conformer generation method not defined.')
 
     def sample_peptide_conformers(self, positions: List[str], vdw_filter_thresh: float = 100.0):
         """
