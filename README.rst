@@ -549,8 +549,8 @@ design position together with the frequency of mutations at these positions.
 **Note**: It is important to take a look at the energies contained in the .txt/.html and
 also to inspect the final output structures.
 
-5.2 Cleaning the working directory
-**********************************
+6. Cleaning the working directory
+---------------------------------
 
 PocketOptimizer creates many files in the directory that is specified as the working directory.
 These can be files containing parameters for the protein or the ligand molecule or files containing the calculated energies.
@@ -567,7 +567,7 @@ You can specify if you want to delete only the files related to the scaffold or 
 that were created during the design run and allows you to start an entirely new design in your working directory.
 
 
-6. Command Line Interface
+7. Command Line Interface
 -------------------------
 
 By running the python script: ui.py, you can also access the command line interface:

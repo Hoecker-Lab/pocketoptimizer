@@ -623,7 +623,7 @@ class DesignPipeline:
                 design_mutations += f'{three2one[mutation]}'
         design_mutations = design_mutations[1:]
         if len(design_mutations) > 250:
-            logger.warning('File name too long.')
+            logger.warning('File path too long.')
             design_mutations = design_mutations[0:249]
 
         design_full_name = os.path.join(f'{self.forcefield}_{self.library}', design_mutations, f'{self.scorer}_scaling_{ligand_scaling}')

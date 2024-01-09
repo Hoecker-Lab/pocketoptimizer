@@ -32,7 +32,7 @@ class IndexMapper(Storer):
                                 {'B_41':{'ALA':1, 'ASP':13, ...}, 'B_44':{..},
                                 'ligand':{'ligand':506}, .. }
 
-        self._scaling_factors: Scaling Factor, {'ligand': 10.0, 'metal':10.0, ..}
+        self._scaling_factors: Scaling Factor, {'ligand': 10.0}
                                If no factor is included for a given design position, 1.0 is assumed
 
         self._dummy_energy: This energy value (in kcal/mol) is set as the pairwise energy of
@@ -213,7 +213,7 @@ class IndexMapper(Storer):
 
         Returns
         -------
-        Number of design positions (i.e. backbone positions, ligand(s), water(s), metal(s))
+        Number of design positions (i.e. backbone positions, ligand)
         """
         return len(self._conformer_counts)
 
@@ -243,7 +243,7 @@ class IndexMapper(Storer):
         Parameters
         ----------
         pos: str
-            Design position (e.g. 'B_41', 'ligand', 'water1', 'metal', ...)
+            Design position (e.g. 'B_41', 'ligand', ...)
         res: str
             Residue type in three letter code ('ARG')
 
