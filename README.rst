@@ -574,20 +574,19 @@ By running the python script: ui.py, you can also access the command line interf
 
 .. code-block:: bash
 
-    usage: ui.py [-h] [-ff FORCEFIELD] -r RECEPTOR -l LIGAND [--ph PH] --mutations MUTATIONS [MUTATIONS ...] [--vdw_thresh VDW_THRESH] [--library LIBRARY]
-                 [--nconfs NCONFS] [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS] [--max_poses MAX_POSES]
-                 [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--cuda] [--clean]
+    usage: ui.py [-h] [-ff FORCEFIELD] -r RECEPTOR -l LIGAND [--peptide] [--flex_peptide_res [FLEX_PEPTIDE_RES ...]] [--ph PH] --mutations MUTATIONS [MUTATIONS ...] [--vdw_thresh VDW_THRESH] [--library LIBRARY] [--nconfs NCONFS]
+                 [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS] [--max_poses MAX_POSES] [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--cuda] [--clean]
 
     PocketOptimizer CLI, for more options use API.
 
-    optional arguments:
+    options:
       -h, --help            show this help message and exit
       -ff FORCEFIELD, --forcefield FORCEFIELD
                             Force field to be used either: amber_ff14SB or charmm36
       -r RECEPTOR, --receptor RECEPTOR
-                            Protein input structure file in pdb format
+                            Protein input structure in pdb format
       -l LIGAND, --ligand LIGAND
-                            Ligand input structure file
+                            Ligand input structure placed in binding pocket
       --ph PH               ph value for side chain and ligand protonation
       --mutations MUTATIONS [MUTATIONS ...]
                             Mutations (A:1:ALA)
@@ -595,14 +594,13 @@ By running the python script: ui.py, you can also access the command line interf
                             Energy threshold for rotamer and ligand pose sampling (kcal/mol)
       --library LIBRARY     Rotamer library, options are: dunbrack or cmlib
       --nconfs NCONFS       Number of ligand conformers to sample, default: 50
-      --rot ROT, --rot ROT  Maximum ligand rotation, default: 20°
-      --rot_steps ROT_STEPS, --rot_steps ROT_STEPS
+      --rot ROT             Maximum ligand rotation, default: 20°
+      --rot_steps ROT_STEPS
                             Ligand rotation steps, default: 20°
-      --trans TRANS, --trans TRANS
-                            Maximum ligand translation, default: 1 Å
-      --trans_steps TRANS_STEPS, --trans_steps TRANS_STEPS
+      --trans TRANS         Maximum ligand translation, default: 1 Å
+      --trans_steps TRANS_STEPS
                             Ligand translation steps, default 0.5 Å
-      --max_poses MAX_POSES, --max_poses MAX_POSES
+      --max_poses MAX_POSES
                             Maximum number of ligand poses to sample, default: 10000
       --scoring SCORING     Scoring function, options are: vina, vinardo, ad4_scoring, amber_ff14SB or charmm36
       --scaling SCALING     Ligand scaling factor, default: 1
