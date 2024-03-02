@@ -120,7 +120,6 @@ class DesignPipeline:
         self.library = ''
         self.rotamer_path = ''
         self.ph = ph
-        self.temperature = 300.0
         self.ncpus = ncpus
         if self.ncpus > mp.cpu_count():
             logger.warning(f'More CPUs defined than available, setting maximum of {mp.cpu_count()} CPUs.')

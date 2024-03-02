@@ -226,7 +226,7 @@ class FFRotamerSampler(Storer):
             merged_rot_file.write('END')
 
     def rotamer_sampling(self, vdw_filter_thresh: float = 100.0, dunbrack_prob: float = 0.01,
-                         expand: List[str] = ['chi1', 'chi2']) -> NoReturn:
+                         expand: List[str] = ['chi1', 'chi2'], include_native: bool = True) -> NoReturn:
         """
         Parameters
         ----------
@@ -237,6 +237,8 @@ class FFRotamerSampler(Storer):
             be pruned if their rotameric mode does occur more than once [default: 0.01]
         expand: list
             List of chi angles to expand [default: ['chi1', 'chi2']]
+        include_native: bool
+            Include the native rotamer at the position
         """
         from pocketoptimizer.utility.utils import MutationProcessor, load_ff_parameters, write_energies, calculate_chunks
 
@@ -334,7 +336,8 @@ class FFRotamerSampler(Storer):
                         # append rotameric states as frames to residue
                         residue.appendFrames(current_rot)
 
-                    residue.dropFrames(drop=0)
+                    if not include_native:
+                        residue.dropFrames(drop=0)
 
                 nrots = residue.coords.shape[-1]
 

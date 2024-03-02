@@ -312,8 +312,8 @@ the ``protein_params`` sub-folder):
 
 .. code-block:: python
 
-    # Prepares all defined mutants and glycine scaffolds for side chain rotamer and ligand pose sampling
-    design.prepare_mutants(sampling_pocket='GLY')
+    # Prepares all defined mutants and alanine scaffolds for side chain rotamer and ligand pose sampling
+    design.prepare_mutants(sampling_pocket='ALA')
 
 **Hint**: Testing additional residues/mutations later on is not a problem.
 PocketOptimizer dynamically detects which mutations/calculations already exist and only calculates additional ones.
@@ -391,8 +391,8 @@ movements in the following form ``[MAXIMUM DISTANCE/ANGLE, STEPS]``, which means
 that in the shown example the ligand would be moved 1 angstrom around every axis
 in 0.5 angstrom steps and rotated by 20 degree around every axis in 20 degree steps.
 A vdW energy threshold ensures that the sampled poses are not clashing with the
-scaffold. This ligand pose pruning procedure is again performed in a glycine scaffold,
-where all design positions are mutated to the amino acid glycine. If the number of
+scaffold. This ligand pose pruning procedure is again performed in an alanine scaffold,
+where all design positions are mutated to the amino acid alanine. If the number of
 accepted poses exceeds the maximum number of poses defined, a MinMax diversity Picker
 from RDKit will be applied to filter all sampled poses based on maximum RMSD diversity.
 
@@ -426,8 +426,8 @@ Side chain rotamers can be sampled with the following method based on the fixed 
 This procedures will use the design mutations that were set in the previous step and a defined van
 der Waals energy threshold to prune rotamers that clash with the protein scaffold.
 The default value is 100 kcal/mol. This pruning procedures are
-also performed in your defined sampling scaffold (glycine), where all other design positions are
-mutated to the amino acid glycine.
+also performed in your defined sampling scaffold (alanine), where all other design positions are
+mutated to the amino acid alanine.
 
 Additionally, a rotamer library can be selected.
 Options are either the original PocketOptimizer rotamer library ``CMLib`` or the backbone dependent

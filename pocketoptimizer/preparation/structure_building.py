@@ -580,12 +580,12 @@ class SystemBuilder(Storer):
         metric_rmsd = MetricRmsd(structure.copy(), 'all', pbc=False)
 
         # Standard values for the integrator and tolerance constraint
-        temperature = self.temperature * unit.kelvin
+        temperature = 300 * unit.kelvin
         friction = 1.0 / unit.picoseconds
         error_tolerance = 2.0 * unit.femtoseconds
         if not cuda:
             # Default value
-            tolerance = 10.0 * unit.kilojoule/unit.mole
+            tolerance = 10.0
         else:
             # High tolerance so the CPU only pre-minimizes
             tolerance = 1e6
@@ -616,11 +616,11 @@ class SystemBuilder(Storer):
         cpu_min = app.Simulation(structure_prm.topology, system, cpu_integrator, platform, properties)
         cpu_min.context.setPositions(inpcrd.positions)
         pre_min_state = cpu_min.context.getState(getEnergy=True, getForces=True)
-        pre_min_state_nrg = pre_min_state.getPotentialEnergy().in_units_of(unit.kilocalories_per_mole)
-        logger.info(f'Starting potential energy: {pre_min_state_nrg}.')
+        pre_min_state_nrg = pre_min_state.getPotentialEnergy()._value * 0.239006
+        logger.info(f'Starting potential energy: {pre_min_state_nrg} kcal/mol.')
         # The energy will only be minimized to the set tolerance value
         cpu_min.minimizeEnergy(tolerance=tolerance)
-        position = cpu_min.context.getState(getPositions=True).getPositions()
+        positions = cpu_min.context.getState(getPositions=True).getPositions()
         post_min_state = cpu_min.context.getState(getEnergy=True, getForces=True)
 
         if cuda:
@@ -638,12 +638,12 @@ class SystemBuilder(Storer):
             gpu_min.context.setPositions(min_coords.getPositions())
             # Minimize until convergence
             gpu_min.minimizeEnergy()
-            position = gpu_min.context.getState(getPositions=True).getPositions()
+            positions = gpu_min.context.getState(getPositions=True).getPositions()
             post_min_state = gpu_min.context.getState(getEnergy=True, getForces=True)
-        post_min_state_nrg = post_min_state.getPotentialEnergy().in_units_of(unit.kilocalories_per_mole)
-        logger.info(f'Ending potential energy: {post_min_state_nrg}.')
+        post_min_state_nrg = post_min_state.getPotentialEnergy()._value * 0.239006
+        logger.info(f'Ending potential energy: {post_min_state_nrg} kcal/mol.')
 
-        app.PDBFile.writeFile(structure_prm.topology, position, open(self.built_scaffold, 'w'), keepIds=True)
+        app.PDBFile.writeFile(structure_prm.topology, positions, open(self.built_scaffold, 'w'), keepIds=True)
 
         # The OpenMM output PDB has usally messed up chains, segids etc.
         # So we just set the minimized coordinates to the input structure

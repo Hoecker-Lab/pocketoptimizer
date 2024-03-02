@@ -31,7 +31,6 @@ class Storer:
         self.work_dir = design_pipeline.work_dir
         self.peptide = design_pipeline.peptide
         self.ph = design_pipeline.ph
-        self.temperature = design_pipeline.temperature
         self.mutations = design_pipeline.mutations
         self.forcefield = design_pipeline.forcefield
         self.scorer = design_pipeline.scorer

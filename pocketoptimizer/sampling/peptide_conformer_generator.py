@@ -87,12 +87,14 @@ class PeptideSampler(FFRotamerSampler):
 
         return energies['vdw']
 
-    def conformer_sampling(self, vdw_filter_thresh: float = 100.0) -> NoReturn:
+    def conformer_sampling(self, vdw_filter_thresh: float = 100.0, include_native: bool = True) -> NoReturn:
         """
         Parameters
         ----------
         vdw_filter_thresh: float
             Filtering threshold to avoid internal clashes [default: 100 kcal/mol]
+        include_native: bool
+            Include the starting conformation
         """
         from pocketoptimizer.utility.utils import MutationProcessor, load_ff_parameters, calculate_chunks
 
@@ -157,8 +159,9 @@ class PeptideSampler(FFRotamerSampler):
                                                 rotamer[i] * (np.pi/180), bonds=bonds)
                     # append rotameric states as frames to residue
                     residue.appendFrames(current_rot)
-                # Remove the original conformation
-                residue.dropFrames(drop=0)
+
+                if not include_native:
+                    residue.dropFrames(drop=0)
 
             num_confs = confs.coords.shape[-1]
             for conf_id in range(num_confs):
