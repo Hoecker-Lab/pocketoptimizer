@@ -606,7 +606,7 @@ class SystemBuilder(Storer):
             force.addPerParticleParameter("y0")
             force.addPerParticleParameter("z0")
             for i, atom_crd in enumerate(inpcrd.positions):
-                if structure.name[i] in ('N', 'CA', 'C', 'O'):
+                if structure.name[i] in ('N', 'CA', 'C'):
                     force.addParticle(i, atom_crd.value_in_unit(unit.nanometers))
             system.addForce(force)
 
