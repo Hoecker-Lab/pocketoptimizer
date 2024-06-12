@@ -37,22 +37,19 @@ class SminaScorer(Storer):
                 'gauss2': -0.005156,
                 'repulsion': 0.840245,
                 'hydrophobic': -0.035069,
-                'non_dir_h_bond': -0.587439,
-                'num_tors_div': 1.923
+                'non_dir_h_bond': -0.587439
             },
             'vinardo': {
                 'gauss': -0.045,
                 'repulsion': 0.8,
                 'hydrophobic': -0.035,
-                'non_dir_h_bond': -0.6,
-                'num_tors_div': 0.0
+                'non_dir_h_bond': -0.6
             },
             'ad4_scoring': {
                 'vdw': 0.156,
                 'non_dir_h_bond_lj': -0.0974,
                 'ad4_solvation': 0.1159,
-                'electrostatic': 0.1465,
-                'num_tors_add': 0.2744
+                'electrostatic': 0.1465
             }
         }
         if self.scorer not in self.smina_weights.keys():
@@ -85,7 +82,7 @@ class SminaScorer(Storer):
         for line in smina_output.split('\n'):
             # Read out the energies for each pose
             if line.startswith('## ') and not line.startswith('## Name'):
-                for i, nrg in enumerate(line.strip().split()[2:]):
+                for i, nrg in enumerate(line.strip().split()[2:-1]):
                     nrgs[i] = float(nrg) * self.weights[i]
                 scores[j] = nrgs
                 j += 1
@@ -235,9 +232,6 @@ class SminaScorer(Storer):
                            energy_terms=self.terms,
                            name_a='ligand_pose',
                            nconfs_a=nposes)
-
-        # Set the torsion weight factor to 0, in order not to count it for every pairwise interaction
-        self.smina_weights['ad4_scoring']['num_tors_add'] = 0.0
 
         # Score ligand against sidechains
         for position in self.mutations:
