@@ -567,13 +567,13 @@ class SystemBuilder(Storer):
             structure, params = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
             structure_prm = app.AmberPrmtopFile(os.path.join(structure_path, 'structure.prmtop'))
             inpcrd = app.AmberInpcrdFile(os.path.join(structure_path, 'structure.crd'))
-            system = structure_prm.createSystem()
+            system = structure_prm.createSystem(constraints=app.HBonds)
         elif self.forcefield.startswith('charmm'):
             # Load Charmm input files
             structure, params = load_ff_parameters(structure_path=structure_path, forcefield=self.forcefield)
             structure_prm = parmed.charmm.CharmmPsfFile(os.path.join(structure_path, 'structure.psf'))
             inpcrd = app.PDBFile(os.path.join(structure_path, 'structure.pdb'))
-            system = structure_prm.createSystem(params)
+            system = structure_prm.createSystem(params, constraints=app.HBonds)
         else:
             logger.error('Force field not supported.')
             raise ValueError('Force field not supported.')
