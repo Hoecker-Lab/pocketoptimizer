@@ -1,3 +1,3 @@
-# Find best design solutions
+# Identify best design solutions
 
-Preparation for and execution of the MPLP algorithm
+Preparation for and execution of the MPLP solving algorithm from Sontag et al.

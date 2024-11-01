@@ -182,14 +182,14 @@ AMBER Force Field) <https://pubmed.ncbi.nlm.nih.gov/15116359/>`_, for CHARMM the
 
 PocketOptimizer needs the following ligand inputs:
 
-    * Ligand in `mol2 <https://zhanggroup.org//DockRMSD/mol2.pdf>`_/`sdf <https://chem.libretexts.org/Courses/Intercollegiate_Courses/Cheminformatics_OLCC_(2019)/2._Representing_Small_Molecules_on_Computers/2.5%3A_Structural_Data_Files>`_ format
+    * Ligand in mol2/sdf format
 
 Eventually:
 
-    * Parameters in `frcmod <https://ambermd.org/FileFormats.php#frcmod>`_ or `prm <https://www.ks.uiuc.edu/Training/Tutorials/namd/namd-tutorial-unix-html/node25.html>`_/`rtf <https://www.ks.uiuc.edu/Training/Tutorials/namd/namd-tutorial-unix-html/node24.html>`_ format
+    * Parameters in frcmod or prm/rtf format
 
 Experienced users can obtain these by using tools like `ANTECHAMBER <http://ambermd.org/antechamber/ac.html>`_ and
-`PARMCHK <http://ambermd.org/tutorials/basic/tutorial5/>`_ for the AMBER force field or `CGenFF <https://cgenff.umaryland.edu/>`_ for the CHARMM force field.
+`PARMCHK <http://ambermd.org/tutorials/basic/tutorial5/>`_ for the AMBER force field or CGenFF for the CHARMM force field.
 
 PocketOptimizer offers a python interface utilizing these tools to parameterize your small molecule:
 
@@ -621,7 +621,7 @@ which makes the software for academic use only.
 
 
 Publications
-************
+------------
 
 **PocketOptimizer 2.0: A modular framework for computer-aided ligand-binding design**, Noske J, Kynast JP, Lemm D, Schmidt S, Höcker B.
 Protein Sci. 2022 Nov 19:e4516. doi: `10.1002/pro.4516 <https://pubmed.ncbi.nlm.nih.gov/36403089/>`_.
