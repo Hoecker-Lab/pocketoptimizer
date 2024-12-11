@@ -30,16 +30,6 @@ dependencies and versions required for PocketOptimizer. By typing:
 
 Conda creates a separate PocketOptimizer environment.
 
-Alternatively, you can use the minimal environment:
-
-.. code-block:: bash
-
-  conda env create -f simple_env.yml
-
-**Warning**: If you want to use CUDA, you might encounter a compatibility problem because the
-CUDA version in the environment.yml is not compatible with your driver. Therefore use the
-simple_env.yml instead.
-
 Running PocketOptimizer
 =======================
 
