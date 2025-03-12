@@ -244,8 +244,7 @@ class DesignPipeline:
         os.makedirs(self.built_ligand_params['params_folder'], exist_ok=True)
         system.prepare_peptide()
 
-    def prepare_protein(self, protein_structure: str, keep_chains: List[str] = [], discard_mols: List[Dict[str, str]] = [],
-                        backbone_restraint: bool = True, cuda: bool = False) -> NoReturn:
+    def prepare_protein(self, protein_structure: str, keep_chains: List[str] = [], discard_mols: List[Dict[str, str]] = [], backbone_restraint: bool = True) -> NoReturn:
         """
         Protonates and cleans the protein structure followed by a subsequent minimization step.
 
@@ -267,8 +266,6 @@ class DesignPipeline:
             List of special molecules to discard, in the following format {'chain': 'X', 'resid': 1}
         backbone_restraint: bool
             Restraints the backbone during minimization. [default: True]
-        cuda: bool
-            If the minimization should be performed on a GPU. [default: False]
         """
         from pocketoptimizer.preparation.structure_building import SystemBuilder
 
@@ -298,7 +295,6 @@ class DesignPipeline:
 
             system.minimize_structure(
                 structure_path=self.built_scaffold_params,
-                cuda=cuda,
                 restraint_bb=backbone_restraint)
 
             logger.info('Your protein was successfully minimized and can be used for design now.')
@@ -818,7 +814,6 @@ def main():
     parser.add_argument('--scaling', type=int, default=1, help='Ligand scaling factor, default: 1', required=False)
     parser.add_argument('--num_solutions', type=int, default=10, help='Number of design solutions to calculate, default 10', required=False)
     parser.add_argument('--ncpus', type=int, default=1, help='Number of CPUs for multiprocessing', required=False)
-    parser.add_argument('--cuda', action='store_true', help='Enabling cuda for GPU-based minimization')
 
     # Custom class for cleaning the working directory
     class CleanWorkDir(argparse.Action):
@@ -852,8 +847,7 @@ def main():
     else:
         design.prepare_peptide(peptide_structure=args.ligand)
 
-    design.prepare_protein(protein_structure=args.receptor,
-                           cuda=args.cuda)
+    design.prepare_protein(protein_structure=args.receptor)
     if not args.peptide:
         design.prepare_lig_conformers(nconfs=args.nconfs)
 

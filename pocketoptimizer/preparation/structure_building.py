@@ -546,7 +546,7 @@ class SystemBuilder(Storer):
                 m.to_csv(os.path.join(outdir, 'resid_map.csv'), index=False)
         bmol.write(os.path.join(outdir, 'structure.pdb'))
 
-    def minimize_structure(self, structure_path: str, cuda: bool = False, restraint_bb: bool = True) -> NoReturn:
+    def minimize_structure(self, structure_path: str, restraint_bb: bool = True) -> NoReturn:
         """
         Minimization method utilizing OpenMM.
         The structures will be initialized with the corresponding force
@@ -556,8 +556,6 @@ class SystemBuilder(Storer):
         ----------
         structure_path: str
             Path to built complex
-        cuda: bool
-            Minimization on GPU. [default: False]
         restraint_bb: bool
             Applies a restraint on the backbone. [default: True]
         """
@@ -579,23 +577,8 @@ class SystemBuilder(Storer):
             raise ValueError('Force field not supported.')
         metric_rmsd = MetricRmsd(structure.copy(), 'all', pbc=False)
 
-        # Standard values for the integrator and tolerance constraint
-        temperature = 300 * unit.kelvin
-        friction = 1.0 / unit.picoseconds
-        error_tolerance = 2.0 * unit.femtoseconds
-        if not cuda:
-            # Default value
-            tolerance = 10.0
-        else:
-            # High tolerance so the CPU only pre-minimizes
-            tolerance = 1e6
-
         # Prepare System and Integrator
-        cpu_integrator = mm.VariableLangevinIntegrator(
-            temperature,
-            friction,
-            error_tolerance
-        )
+        integrator = mm.LangevinIntegrator(300 * unit.kelvin, 1.0 / unit.picoseconds, 1.0 * unit.femtoseconds)
 
         if restraint_bb:
             # Applies an external force on backbone atoms
@@ -612,35 +595,16 @@ class SystemBuilder(Storer):
 
         # Setup CPU minimization
         platform = mm.Platform.getPlatformByName('CPU')
-        properties = None
-        cpu_min = app.Simulation(structure_prm.topology, system, cpu_integrator, platform, properties)
-        cpu_min.context.setPositions(inpcrd.positions)
-        pre_min_state = cpu_min.context.getState(getEnergy=True, getForces=True)
-        pre_min_state_nrg = pre_min_state.getPotentialEnergy()._value * 0.239006
+        min = app.Simulation(structure_prm.topology, system, integrator, platform)
+        min.context.setPositions(inpcrd.positions)
+        pre_min_state = min.context.getState(getEnergy=True)
+        pre_min_state_nrg = pre_min_state.getPotentialEnergy().value_in_unit(unit.kilocalories_per_mole)
         logger.info(f'Starting potential energy: {pre_min_state_nrg} kcal/mol.')
         # The energy will only be minimized to the set tolerance value
-        cpu_min.minimizeEnergy(tolerance=tolerance)
-        positions = cpu_min.context.getState(getPositions=True).getPositions()
-        post_min_state = cpu_min.context.getState(getEnergy=True, getForces=True)
-
-        if cuda:
-            # Get the pre-minimized state
-            min_coords = cpu_min.context.getState(getPositions=True)
-            # Setup GPU minimizer and integrator
-            platform = mm.Platform.getPlatformByName('CUDA')
-            properties = {'CudaPrecision': 'mixed'}
-            gpu_integrator = mm.VariableLangevinIntegrator(
-                temperature,
-                friction,
-                error_tolerance
-            )
-            gpu_min = app.Simulation(structure_prm.topology, system, gpu_integrator, platform, properties)
-            gpu_min.context.setPositions(min_coords.getPositions())
-            # Minimize until convergence
-            gpu_min.minimizeEnergy()
-            positions = gpu_min.context.getState(getPositions=True).getPositions()
-            post_min_state = gpu_min.context.getState(getEnergy=True, getForces=True)
-        post_min_state_nrg = post_min_state.getPotentialEnergy()._value * 0.239006
+        min.minimizeEnergy()
+        positions = min.context.getState(getPositions=True).getPositions()
+        post_min_state = min.context.getState(getEnergy=True)
+        post_min_state_nrg = post_min_state.getPotentialEnergy().value_in_unit(unit.kilocalories_per_mole)
         logger.info(f'Ending potential energy: {post_min_state_nrg} kcal/mol.')
 
         app.PDBFile.writeFile(structure_prm.topology, positions, open(self.built_scaffold, 'w'), keepIds=True)
