@@ -5,7 +5,7 @@ PocketOptimizer is a framework that offers experimentation with different scorin
 protein-ligand binding design.
 
 - **API** -- Python 3 and workflow interface
-- **Minimization** -- GPU based minimization through `OpenMM <https://openmm.org/>`_
+- **Minimization** -- Minimization through `OpenMM <https://openmm.org/>`_
 - **Force Fields** -- `Amber ff14SB <https://pubs.acs.org/doi/10.1021/acs.jctc.5b00255>`_ and `CHARMM36 <https://pubmed.ncbi.nlm.nih.gov/23832629/>`_
 - **Scoring Functions** -- Binding interaction scoring with `Smina <https://github.com/mwojcikowski/smina>`_ (empirical) or `FFEvaluate <https://software.acellera.com/htmd/tutorials/FFEvaluate.html>`_ (physics-based)
 - **Deterministic** -- Linear programming is applied to find the Global Minimum Energy Conformation (GMEC) in a given set
