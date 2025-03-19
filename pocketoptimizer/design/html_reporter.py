@@ -900,5 +900,3 @@ class HtmlReporter:
 
         with open(os.path.join(self._output_dir, 'summary.html'), 'w') as out:
             print(t.HTML(head, body), file=out)
-
-

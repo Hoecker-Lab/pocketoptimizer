@@ -1,33 +1,17 @@
-aa = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE', 'PRO',
-      'SER', 'THR', 'TRP', 'TYR', 'VAL', 'HIP', 'HID', 'HIE']
+aa = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY',
+      'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE', 'PRO', 'SER',
+      'THR', 'TRP', 'TYR', 'VAL', 'HIP', 'HID', 'HIE']
 
-one2three = {'C': 'CYS',
-             'D': 'ASP',
-             'S': 'SER',
-             'Q': 'GLN',
-             'K': 'LYS',
-             'I': 'ILE',
-             'P': 'PRO',
-             'T': 'THR',
-             'F': 'PHE',
-             'N': 'ASN',
-             'G': 'GLY',
-             'H': 'HIS',
-             'L': 'LEU',
-             'R': 'ARG',
-             'W': 'TRP',
-             'A': 'ALA',
-             'V': 'VAL',
-             'E': 'GLU',
-             'Y': 'TYR',
-             'M': 'MET',
-             'X': 'UNK'}
+one2three = {'C': 'CYS', 'D': 'ASP', 'S': 'SER', 'Q': 'GLN', 'K': 'LYS', 'I': 'ILE',
+             'P': 'PRO', 'T': 'THR', 'F': 'PHE', 'N': 'ASN', 'G': 'GLY', 'H': 'HIS',
+             'L': 'LEU', 'R': 'ARG', 'W': 'TRP', 'A': 'ALA', 'V': 'VAL', 'E': 'GLU',
+             'Y': 'TYR', 'M': 'MET', 'X': 'UNK'}
 
-three2one = {'ALA': 'A', 'ARG': 'R', 'ASN': 'N', 'ASP': 'D', 'CYS': 'C',
-              'GLN': 'Q', 'GLU': 'E', 'GLY': 'G', 'HIS': 'H', 'HID': 'H',
-              'HIE': 'H', 'HIP': 'H', 'HSD': 'H', 'HSE': 'H', 'HSP': 'H', 'ILE': 'I',
-              'LEU': 'L', 'LYS': 'K', 'MET': 'M', 'PHE': 'F', 'PRO': 'P', 'SER': 'S',
-              'THR': 'T', 'TRP': 'W', 'TYR': 'Y', 'VAL': 'V'}
+three2one = {'ALA': 'A', 'ARG': 'R', 'ASN': 'N', 'ASP': 'D', 'CYS': 'C', 'GLN': 'Q',
+             'GLU': 'E', 'GLY': 'G', 'HIS': 'H', 'HID': 'H', 'HIE': 'H', 'HIP': 'H',
+             'HSD': 'H', 'HSE': 'H', 'HSP': 'H', 'ILE': 'I', 'LEU': 'L', 'LYS': 'K',
+             'MET': 'M', 'PHE': 'F', 'PRO': 'P', 'SER': 'S', 'THR': 'T', 'TRP': 'W',
+             'TYR': 'Y', 'VAL': 'V'}
 
 # Taken from https://raw.githubusercontent.com/Pymol-Scripts/Pymol-script-repo/master/findseq.py
 # Jason Vertrees, 2009
