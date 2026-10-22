@@ -561,7 +561,7 @@ that were created during the design run and allows you to start an entirely new 
 
 By running the python script: ui.py, you can also access the command line interface:
 
-.. code-block:: bash
+.. code-block::
 
     usage: ui.py [-h] [-ff FORCEFIELD] -r RECEPTOR -l LIGAND [--ph PH] --mutations MUTATIONS [MUTATIONS ...] [--vdw_thresh VDW_THRESH] [--library LIBRARY] [--nconfs NCONFS]
                  [--rot ROT] [--rot_steps ROT_STEPS] [--trans TRANS] [--trans_steps TRANS_STEPS] [--max_poses MAX_POSES] [--scoring SCORING] [--scaling SCALING] [--num_solutions NUM_SOLUTIONS] [--ncpus NCPUS] [--clean]
